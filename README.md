@@ -70,7 +70,8 @@ later the server exits by itself.
 | Message box about `bun.exe` | Bun is not installed and not in the Freebuff folder. Install Bun. |
 | Window opens on an odd port | Something else holds `7788`; the launcher walks up to `7799`. |
 
-Logs are in `gl79-data\launcher\`, one file per run or build.
+Logs are in `gl79-data\launcher\`: the newest run log, plus the build and
+prebuild logs. A run's log replaces the previous one as the new session starts.
 
 ## Build by hand
 

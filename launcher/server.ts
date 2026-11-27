@@ -13,6 +13,7 @@
 
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pruneRunLogs } from "./logs";
 
 const HERE = import.meta.dir; // <root>/launcher
 const ROOT = join(HERE, "..");
@@ -201,6 +202,8 @@ function start(kind: Job["kind"], argv: string[], logTag: string, mode?: Mode) {
 
   mkdirSync(P.logs, { recursive: true });
   const log = join(P.logs, `${logTag}-${stamp()}.log`);
+  // A run log is a session's own: the one before it goes as this one starts.
+  if (kind === "run") pruneRunLogs(P.logs, log);
   const sink = Bun.file(log).writer();
   sink.write(`> ${argv.map(quote).join(" ")}\n\n`);
 

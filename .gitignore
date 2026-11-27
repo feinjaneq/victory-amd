@@ -6,9 +6,12 @@ _gl79/
 ffx/
 *.zip
 
-# Run data and saved profile stay local; the launcher's run logs are kept.
+# Run data and saved profile stay local; build and prebuild logs are kept.
+# A run log is a session's own: the launcher deletes the previous one when a run
+# starts, so they are not tracked either.
 gl79-data/*
 !gl79-data/launcher/
+gl79-data/launcher/run-*.log
 
 # Launcher runtime
 launcher/.window/
