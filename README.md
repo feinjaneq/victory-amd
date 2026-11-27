@@ -50,7 +50,8 @@ once on and read **Card memory** on the Games tab.
   memory / shader cache, and the run log (click its header to expand).
 - **Workshop** — **Build runtime** (compiles `victory.exe`), **Prebuild
   shaders** (fills the shader cache so a run does not start by compiling),
-  cache size, and the compiler log.
+  cache size, and the compiler log. The same prebuild from a terminal is
+  `prebuild-shaders.cmd` (`-Plan` shows what it would run).
 - **Settings** — the two exact command lines Play runs (with `-MemoryStack` when
   the toggle is on), every path the launcher uses with a dot for whether it was
   found, **Choose folder…** for the game folder, and the memory stack toggle.

@@ -1,0 +1,86 @@
+> cargo build --locked --profile diag -p victory --features diagnostics
+
+   Compiling victory-gpu v0.1.0 (C:\Users\Janeq\.config\freebuff-desktop\local-projects\f5d5af6a-46c0-4a93-9559-a06120a29c94\_gl79\crates\victory-gpu)
+warning: unused variable: `batched`
+   --> crates\victory-gpu\src\indirect.rs:308:9
+    |
+308 |     let batched = source == batch::SOURCE;
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_batched`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `list`
+   --> crates\victory-gpu\src\list.rs:188:17
+    |
+188 |     if let Some(list) = found {
+    |                 ^^^^ help: if this is intentional, prefix it with an underscore: `_list`
+
+warning: field `0` is never read
+   --> crates\victory-gpu\src\book.rs:247:17
+    |
+247 |     struct Slot(ID3D12DescriptorHeap, usize);
+    |            ---- ^^^^^^^^^^^^^^^^^^^^
+    |            |
+    |            field in this struct
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+    |
+247 -     struct Slot(ID3D12DescriptorHeap, usize);
+247 +     struct Slot((), usize);
+    |
+
+warning: variant `Title` is never constructed
+    --> crates\victory-gpu\src\host.rs:8110:5
+     |
+8104 | enum Touch {
+     |      ----- variant in this enum
+...
+8110 |     Title,
+     |     ^^^^^
+
+warning: constant `LARGER` is never used
+  --> crates\victory-gpu\src\picture.rs:25:7
+   |
+25 | const LARGER: u64 = 2;
+   |       ^^^^^^
+
+warning: function `forget` is never used
+  --> crates\victory-gpu\src\picture.rs:68:15
+   |
+68 | pub(crate) fn forget() {
+   |               ^^^^^^
+
+warning: function `stand_in` is never used
+  --> crates\victory-gpu\src\picture.rs:78:15
+   |
+78 | pub(crate) fn stand_in(presented: usize, width: u32, height: u32) -> Option<crate::object::This> {
+   |               ^^^^^^^^
+
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+  --> crates\victory-gpu\src\pipeline\known.rs:64:48
+   |
+64 |             walk_shaders(&dir, |_, hash, _, _| drop(shaders.insert(hash))),
+   |                                                ^^^^^--------------------^
+   |                                                     |
+   |                                                     argument has type `bool`
+   |
+   = note: use `let _ = ...` to ignore the expression or result
+   = note: `#[warn(dropping_copy_types)]` on by default
+
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+   --> crates\victory-gpu\src\pipeline\known.rs:223:46
+    |
+223 |     walk_shaders(dir, |stage, hash, at, len| drop(places.insert(hash, (stage, at, len))));
+    |                                              ^^^^^-------------------------------------^
+    |                                                   |
+    |                                                   argument has type `Option<(u8, u64, u32)>`
+    |
+    = note: use `let _ = ...` to ignore the expression or result
+
+   Compiling victory-hle v0.1.0 (C:\Users\Janeq\.config\freebuff-desktop\local-projects\f5d5af6a-46c0-4a93-9559-a06120a29c94\_gl79\crates\victory-hle)
+warning: `victory-gpu` (lib) generated 9 warnings (run `cargo fix --lib -p victory-gpu` to apply 2 suggestions)
+   Compiling victory v0.1.0 (C:\Users\Janeq\.config\freebuff-desktop\local-projects\f5d5af6a-46c0-4a93-9559-a06120a29c94\_gl79\apps\victory)
+    Finished `diag` profile [optimized + debuginfo] target(s) in 58.88s
+
+[exit 0]
