@@ -11,7 +11,7 @@
 // Every process is a child of this server, so "Stop" ends the whole tree and
 // the window closing (no requests for two minutes) ends the server too.
 
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const HERE = import.meta.dir; // <root>/launcher
@@ -19,16 +19,36 @@ const ROOT = join(HERE, "..");
 const GAME_DIR = "C:\\Users\\Janeq\\Downloads\\GTA6.Xbox.v1.0.2.1-CYBERLEEK";
 
 const REPO = join(ROOT, "_gl79");
+const SNAPSHOT = join(ROOT, "fork");
 const buildExe = (profile: string) => join(REPO, "target", profile, "victory.exe");
-// The fork's script only knows target\diag and target\release, so use whichever of
-// those was actually built instead of insisting on diag.
-const profile = ["diag", "release"].find((p) => existsSync(buildExe(p))) ?? "diag";
+// The fork's script knows target\diag and target\release only, so use whichever
+// exists. Read every time rather than once at startup, so a build made while the
+// launcher is open is usable without restarting it.
+const profileNow = () => (existsSync(buildExe("diag")) ? "diag" : existsSync(buildExe("release")) ? "release" : "diag");
+const buildExeNow = () => buildExe(profileNow());
+const hasSource = () => existsSync(join(REPO, "Cargo.toml"));
+
+// `_gl79` is the runtime's own checkout, so it is not stored in this repository.
+// Nobody should have to know that: if it is missing, the snapshot is copied in,
+// and so is the config the runtime refuses to start without.
+function provisionSource() {
+  let copied = false;
+  if (!hasSource()) {
+    if (!existsSync(join(SNAPSHOT, "Cargo.toml")))
+      return { error: `no runtime source: neither ${REPO} nor ${SNAPSHOT} has a Cargo.toml` };
+    mkdirSync(REPO, { recursive: true });
+    cpSync(SNAPSHOT, REPO, { recursive: true });
+    copied = true;
+  }
+  // The game folder comes from VICTORY_GAME_DIR (childEnv), never from this file.
+  const example = join(REPO, "victory.example.toml");
+  if (!existsSync(P.config) && existsSync(example)) cpSync(example, P.config);
+  return { ok: true, copied };
+}
 
 const P = {
   repo: REPO,
-  profile,
   script: join(ROOT, "_gl79", "scripts", "play-rx6600.ps1"),
-  build: buildExe(profile),
   config: join(ROOT, "_gl79", "victory.toml"),
   ffx: join(ROOT, "ffx", "Kits", "FidelityFX", "signedbin"),
   data: join(ROOT, "gl79-data"),
@@ -46,26 +66,29 @@ const MODES: Mode[] = [
     name: "Optimized",
     badge: "Recommended",
     detail: "Series S · 1280×720 · FSR 4.1.2 + frame generation",
-    args: ["-Build", P.profile, "-FidelityFxDir", P.ffx, "-SeriesS", "-Resolution", "1280x720", "-Stats"],
+    args: ["-FidelityFxDir", P.ffx, "-SeriesS", "-Resolution", "1280x720", "-Stats"],
   },
   {
     id: "normal",
     name: "Normal",
     badge: "Unoptimized",
     detail: "Series X · 1920×1080 · no upscaler, no generated frames",
-    args: ["-Build", P.profile, "-SeriesX", "-Resolution", "1920x1080", "-Stats"],
+    args: ["-SeriesX", "-Resolution", "1920x1080", "-Stats"],
   },
 ];
 
 const runArgv = (mode: Mode) =>
-  ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", P.script, "-Exe", P.game, ...mode.args];
+  ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", P.script, "-Exe", P.game, "-Build", profileNow(), ...mode.args];
 
-const PREBUILD_ARGV = [P.build, "shaders", "--jobs", "10"];
+const prebuildArgv = () => [buildExeNow(), "shaders", "--jobs", "10"];
+
+// Byte for byte the command the README gives, so the button and a terminal agree.
+const BUILD_ARGV = ["cargo", "build", "--locked", "--profile", "diag", "-p", "victory", "--features", "diagnostics"];
 
 /* ---------- jobs ---------- */
 
 type Job = {
-  kind: "run" | "prebuild";
+  kind: "run" | "prebuild" | "build";
   mode?: Mode;
   log: string;
   startedAt: number;
@@ -75,7 +98,7 @@ type Job = {
 };
 
 let active: Job | null = null; // at most one job, ever
-const latest: { run: Job | null; prebuild: Job | null } = { run: null, prebuild: null };
+const latest: { run: Job | null; prebuild: Job | null; build: Job | null } = { run: null, prebuild: null, build: null };
 let lastSeen = Date.now();
 
 const quote = (arg: string) => (/\s/.test(arg) ? `"${arg}"` : arg);
@@ -92,6 +115,7 @@ function childEnv() {
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
   // play-rx6600.ps1 drops every VICTORY_* it does not keep, so only these stay.
   env.VICTORY_CONFIG = P.config;
+  env.VICTORY_GAME_DIR = P.gameDir;
   env.VICTORY_CACHE_DIR = P.cache;
   env.VICTORY_DATA_DIR = P.data;
   return env;
@@ -152,17 +176,26 @@ function start(kind: Job["kind"], argv: string[], logTag: string, mode?: Mode) {
 function buildHint() {
   const debug = buildExe("debug");
   if (existsSync(debug))
-    return ` - found ${debug}: a plain "cargo build" makes a debug build, which is not what Play runs. Rebuild with "--profile diag" (see README, Build the runtime).`;
-  if (!existsSync(join(P.repo, "Cargo.toml")))
-    return ` - ${P.repo} has no Cargo.toml: the runtime source is missing. Copy fork/ into _gl79 (see README, Get the runtime source).`;
-  return ` - nothing built into ${join(P.repo, "target")} yet: run the cargo build with "--profile diag".`;
+    return ` - found ${debug}: a plain "cargo build" makes a debug build, which is not what Play runs. Use Workshop > Build runtime, which builds target\\diag.`;
+  if (!hasSource())
+    return ` - ${P.repo} has no Cargo.toml: the runtime source is missing. Reopening the launcher copies fork/ in; Workshop > Build runtime does it too.`;
+  return ` - nothing built into ${join(P.repo, "target")} yet: use Workshop > Build runtime.`;
+}
+
+function startBuild() {
+  if (!hasSource()) {
+    const made = provisionSource();
+    if (made.error) return { error: made.error };
+  }
+  return start("build", BUILD_ARGV, "build");
 }
 
 function startRun(modeId: string) {
   const mode = MODES.find((m) => m.id === modeId);
   if (!mode) return { error: "unknown mode" };
+  if (!hasSource()) provisionSource();
   if (!existsSync(P.script)) return { error: `missing script: ${P.script}` };
-  if (!existsSync(P.build)) return { error: `missing build: ${P.build}${buildHint()}` };
+  if (!existsSync(buildExeNow())) return { error: `missing build: ${buildExeNow()}${buildHint()}` };
   if (!existsSync(P.game)) return { error: `missing game: ${P.game}` };
   if (mode.args.includes("-FidelityFxDir") && !existsSync(join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")))
     return { error: `missing FidelityFX: ${join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")}` };
@@ -170,8 +203,8 @@ function startRun(modeId: string) {
 }
 
 function startPrebuild() {
-  if (!existsSync(P.build)) return { error: `missing build: ${P.build}${buildHint()}` };
-  return start("prebuild", PREBUILD_ARGV, "prebuild");
+  if (!existsSync(buildExeNow())) return { error: `missing build: ${buildExeNow()}${buildHint()}` };
+  return start("prebuild", prebuildArgv(), "prebuild");
 }
 
 function stop() {
@@ -258,6 +291,7 @@ function human(bytes: number) {
 async function snapshot() {
   const run = latest.run;
   const prebuild = latest.prebuild;
+  const build = latest.build;
   const running = run?.exit === null ? run : null;
   const cache = cacheStats();
   const runLog = await tail(run?.log ?? "");
@@ -280,10 +314,17 @@ async function snapshot() {
       logPath: prebuild?.log ?? null,
       log: (await tailLines(prebuild, 16_000)).slice(-200),
     },
+    build: {
+      running: build?.exit === null,
+      exit: build?.exit ?? null,
+      logPath: build?.log ?? null,
+      log: (await tailLines(build, 16_000)).slice(-200),
+    },
+    source: hasSource(),
     paths: {
       game: P.game,
-      build: P.build,
-      profile: P.profile,
+      build: buildExeNow(),
+      profile: profileNow(),
       script: P.script,
       ffx: P.ffx,
       config: P.config,
@@ -291,7 +332,7 @@ async function snapshot() {
     },
     checks: {
       game: existsSync(P.game),
-      build: existsSync(P.build),
+      build: existsSync(buildExeNow()),
       script: existsSync(P.script),
       ffx: existsSync(join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")),
       config: existsSync(P.config),
@@ -352,6 +393,7 @@ async function route(req: Request, url: URL) {
   if (url.pathname === "/api/play") return json(startRun(String((await body(req)).mode ?? "")));
   if (url.pathname === "/api/stop") return json(stop());
   if (url.pathname === "/api/prebuild") return json(startPrebuild());
+  if (url.pathname === "/api/build") return json(startBuild());
   if (url.pathname === "/api/open") return json(openFolder(String((await body(req)).target ?? "")));
   if (url.pathname === "/api/quit") {
     setTimeout(() => process.exit(0), 120);
@@ -399,6 +441,10 @@ function openWindow(url: string) {
 }
 
 async function boot() {
+  const made = provisionSource();
+  if (made.copied) console.log(`copied the runtime source into ${REPO}`);
+  else if (made.error) console.error(made.error);
+
   let server: ReturnType<typeof Bun.serve> | null = null;
   let port = 7788;
 

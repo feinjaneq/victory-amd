@@ -23,6 +23,12 @@ the shader cache (`gl79-data/cache-gl79/`), the game's saved profile and the
 browser profile. The live checkout in `_gl79/` is the fork's own git clone with
 its own remote; `fork/` is the plain snapshot kept here as a backup.
 
+The launcher sets `_gl79/` up itself: at startup it copies `fork/` into `_gl79/`
+if that folder has no `Cargo.toml`, and copies `victory.example.toml` to
+`victory.toml` if the config is missing (never overwriting either). `Workshop →
+Build runtime` runs `cargo build --locked --profile diag -p victory --features
+diagnostics` in `_gl79/`. Do not turn those back into manual README steps.
+
 Paths the launcher uses stay outside this repository:
 the dumped game folder `C:\Users\Janeq\Downloads\GTA6.Xbox.v1.0.2.1-CYBERLEEK\`
 (its executable is `game_scarlett_master.exe`), `_gl79/target/diag/victory.exe`,

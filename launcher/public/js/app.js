@@ -25,6 +25,8 @@ const el = {
   wsBuild: $("#ws-build"),
   prebuild: $("#prebuild"),
   prebuildNote: $("#prebuild-note"),
+  build: $("#build-runtime"),
+  buildNote: $("#build-note"),
   wsConsole: $("#ws-console"),
   wsLog: $("#ws-log"),
   wsLogName: $("#ws-log-name"),
@@ -233,7 +235,26 @@ function render() {
   if (el.console.classList.contains("is-open")) el.logTail.scrollTop = el.logTail.scrollHeight;
 
   const pre = data.prebuild;
-  el.prebuild.disabled = data.busy !== null;
+  const bld = data.build;
+  const busy = data.busy !== null;
+
+  el.build.disabled = busy;
+  if (bld.running) {
+    el.build.textContent = "Compiling…";
+    el.buildNote.textContent = "cargo build --profile diag is running. Leave it alone until it finishes.";
+  } else {
+    el.build.textContent = data.checks.build ? "Rebuild runtime" : "Build runtime";
+    el.buildNote.textContent =
+      bld.exit !== null
+        ? bld.exit === 0
+          ? "The runtime is built. Play works now."
+          : `Last build exited with code ${bld.exit} — the log below says why.`
+        : data.checks.build
+          ? "Only needed after the runtime source changes."
+          : "Builds victory.exe so Play has something to run.";
+  }
+
+  el.prebuild.disabled = busy;
   if (pre.running) {
     el.prebuild.textContent = "Building…";
     el.prebuildNote.textContent = "victory shaders --jobs 10 is running.";
@@ -244,9 +265,12 @@ function render() {
       : pre.exit === 0 ? "Last build finished cleanly."
       : `Last build exited with code ${pre.exit}.`;
   }
-  if (pre.logPath) el.wsLogName.textContent = pre.logPath.split(/[\\/]/).pop();
-  if (pre.log.length) {
-    el.wsLog.textContent = pre.log.filter((line) => line.trim() !== "").slice(-40).join("\n");
+
+  // One console: show whichever of the two was used last.
+  const shown = bld.running || (!pre.logPath && bld.logPath) ? bld : pre;
+  if (shown.logPath) el.wsLogName.textContent = shown.logPath.split(/[\\/]/).pop();
+  if (shown.log.length) {
+    el.wsLog.textContent = shown.log.filter((line) => line.trim() !== "").slice(-40).join("\n");
     el.wsLog.scrollTop = el.wsLog.scrollHeight;
   }
 
@@ -332,6 +356,19 @@ el.play.addEventListener("click", async () => {
     el.console.classList.add("is-open");
     $(".console-more", el.console).textContent = "collapse";
   }
+  poll();
+});
+
+el.build.addEventListener("click", async () => {
+  el.build.disabled = true;
+  const res = await api("/api/build", {});
+  if (res.error) {
+    el.buildNote.textContent = res.error;
+    el.build.disabled = false;
+    return;
+  }
+  el.wsConsole.classList.add("is-open");
+  $(".console-more", el.wsConsole).textContent = "collapse";
   poll();
 });
 

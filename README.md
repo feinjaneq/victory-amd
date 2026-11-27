@@ -23,8 +23,8 @@ the internet. Close the window and the local server exits on its own.
 - [Bun](https://bun.sh) on `PATH`. If you do not have it, `start-launcher.cmd`
   looks for the copy bundled with Freebuff Desktop and shows a message box if it
   finds nothing.
-- The runtime source in `_gl79\` (see **Get the runtime source** below; it is
-  not stored in this repository).
+- The runtime source: the launcher copies `fork\` into `_gl79\` by itself on
+  startup, so there is nothing to prepare (see **Build**).
 - Rust 1.98.1 and the Visual Studio C++ build tools with a Windows SDK — only
   needed to build the runtime, not to run the launcher.
 - The runtime build: `_gl79\target\diag\victory.exe` (see **Build** below).
@@ -81,6 +81,9 @@ Double-click **`start-launcher.cmd`**.
 
 ### Workshop tab
 
+- **Build runtime** compiles `victory.exe` with cargo, using the same command the
+  README gives, and shows the compiler output while it works. This is the only
+  build step the launcher has; press it once, then Play.
 - Shows how many files are in the shader cache and how much space they take
   (`gl79-data\cache-gl79`), with buttons to open the cache folder and the log
   folder.
@@ -100,45 +103,29 @@ Double-click **`start-launcher.cmd`**.
 Build the runtime, not the launcher — the launcher is plain HTML/CSS/JS served
 by Bun and needs no build step.
 
-### Get the runtime source (first time only)
+### You never create `_gl79` by hand
 
-`_gl79\` is **not** part of this repository: it is the fork's own git clone with
-its own remote, so it is ignored here (a nested repo would only leave a pointer
-and lose its history). There are two ways to get it:
+The runtime's source is its own git repository, so it is not stored here (a
+nested repo would only leave a pointer behind) — but `fork\` holds that same
+tree. On startup the launcher does the boring part, once:
 
-- **From the snapshot that is in the repository.** `fork\` holds the fork's
-  source at the build commit, so copying it into `_gl79\` gives you the exact
-  same tree:
+- no `_gl79\` → it copies `fork\` there;
+- no `_gl79\victory.toml` → it copies `victory.example.toml` to it. Do not edit
+  paths in that file: the launcher passes the game folder and the cache folders
+  to the runtime itself (`VICTORY_GAME_DIR`, `VICTORY_CACHE_DIR`, …).
 
-  ```powershell
-  Copy-Item -Recurse fork _gl79
-  ```
+Neither step overwrites anything that already exists, so a checkout you have
+worked in, or a config you edited, stays exactly as it is. If you would rather
+have the fork's own git history, delete `_gl79\` and `git clone` the fork into
+that name instead — the launcher uses whatever is in that folder.
 
-- **From the fork's repository**, if you have access to it:
+### Build it
 
-  ```powershell
-  git clone <fork url> _gl79
-  ```
+The easy way is **Workshop → Build runtime**. It runs the command below, streams
+the compiler's own output into the log under the button, and unlocks Play when
+`victory.exe` appears. You can leave the window open while it works.
 
-Either way, `_gl79\` must end up with `Cargo.toml`, `crates\`, `apps\` and
-`scripts\play-rx6600.ps1` at its top level — that is what the launcher checks
-for.
-
-### Set the game folder (first time only)
-
-The runtime reads `_gl79\victory.toml`. The launcher points it there explicitly
-(`VICTORY_CONFIG`), and the runtime stops with *"VICTORY_CONFIG points at …
-which does not exist"* if the file is missing, so create it once:
-
-```powershell
-Copy-Item _gl79\victory.example.toml _gl79\victory.toml
-```
-
-Then set `game_dir` in `_gl79\victory.toml` to the folder that holds your copy
-of the game. That file is deliberately git-ignored: it is yours, and it is not
-uploaded anywhere.
-
-### Build the runtime
+By hand, it is the same thing:
 
 ```powershell
 cd _gl79
@@ -156,8 +143,8 @@ rebuild what changed. You need:
 
 That produces `_gl79\target\diag\victory.exe`, which is exactly what the
 launcher checks for before it lets you press Play. Build once, and rebuild only
-when the runtime source changes. While a run is in progress the launcher refuses
-to start a build job at the same time (one job at a time, ever).
+when the runtime source changes. The launcher runs one job at a time, so it will
+not start a build while a run is going, or a run while a build is going.
 
 A `--profile release` build is picked up automatically: the launcher uses
 `target\diag` if it exists, otherwise `target\release`. A plain `cargo build`
@@ -198,8 +185,8 @@ Nothing outside this folder is written except the run's own data in
 | --- | --- |
 | A message box about `bun.exe` | Bun is not on `PATH` and not in the Freebuff folder. Install Bun, or set `FREEBUFF_BUN` to `bun.exe`. |
 | Play says **missing script** | `_gl79\scripts\play-rx6600.ps1` is gone — re-clone the fork into `_gl79`. |
-| Play says **missing build** | Nothing was built at `_gl79\target\diag\victory.exe`. If the build worked, it probably landed in `target\debug`: a plain `cargo build` is a debug build, and Play does not use it. Run the build again with `--profile diag`. The message names the file it looked for and the folder it found instead. A `--profile release` build is picked up automatically. |
-| The runtime stops with *VICTORY_CONFIG points at … which does not exist* | `_gl79\victory.toml` was never created — copy `victory.example.toml` (see **Set the game folder**). |
+| Play says **missing build** | Nothing was built at `_gl79\target\diag\victory.exe`. Press **Workshop → Build runtime**. If you built in a terminal instead and it landed in `target\debug`, that was a plain `cargo build` — Play does not use debug builds. A `target\release` build is picked up on its own. |
+| The runtime stops with *VICTORY_CONFIG points at … which does not exist* | `_gl79\victory.toml` is gone (the launcher creates it from `victory.example.toml` on startup). Close the launcher and open it again. |
 | `cargo` is not recognised | Rust is not installed, or `%USERPROFILE%\.cargo\bin` is not on `PATH`; open a new terminal after installing. |
 | `link.exe not found` / `LINK : fatal error LNK1181` | The MSVC build tools or the Windows SDK are missing (see **Build**). |
 | Play says **missing FidelityFX** | Optimized mode needs `ffx\Kits\FidelityFX\signedbin\amd_fidelityfx_upscaler_dx12.dll`. Use Normal mode, or restore that folder. |
@@ -213,8 +200,8 @@ Nothing outside this folder is written except the run's own data in
 start-launcher.cmd      entry point; finds bun, starts the server hidden
 launcher/server.ts      the whole backend: state, play, stop, prebuild, logs
 launcher/public/        the window (HTML, CSS, JS, hero art)
-_gl79/                  the runtime source (not in git; copy `fork/` into it
-                        if it is missing)
+_gl79/                  the runtime source (not in git; the launcher copies
+                        `fork/` into it on startup)
 _gl79/scripts/          play-rx6600.ps1 and friends
 fork/                   plain snapshot of the runtime source, kept as a backup
 attic/                  patches from experiments that were removed
