@@ -1,0 +1,41 @@
+   Compiling victory-gpu v0.1.0 (C:\Users\Janeq\.config\freebuff-desktop\local-projects\f5d5af6a-46c0-4a93-9559-a06120a29c94\_victory_amd\crates\victory-gpu)
+error[E0061]: this method takes 6 arguments but 5 arguments were supplied
+    --> crates\victory-gpu\src\descriptor\host.rs:3070:14
+     |
+3070 |         host.sweep_part(0..8, handle, 50, false, &mut counts);
+     |              ^^^^^^^^^^-------------------------------------- argument #6 of type `&BTreeSet<u32>` is missing
+     |
+note: method defined here
+    --> crates\victory-gpu\src\descriptor\host.rs:1124:8
+     |
+1124 |     fn sweep_part(
+     |        ^^^^^^^^^^
+...
+1131 |         queued: &std::collections::BTreeSet<u32>,
+     |         ----------------------------------------
+help: provide the argument
+     |
+3070 |         host.sweep_part(0..8, handle, 50, false, &mut counts, /* &BTreeSet<u32> */);
+     |                                                             ++++++++++++++++++++++
+
+error[E0061]: this method takes 6 arguments but 5 arguments were supplied
+    --> crates\victory-gpu\src\descriptor\host.rs:3073:14
+     |
+3073 |         host.sweep_part(0..8, handle, 50, true, &mut counts);
+     |              ^^^^^^^^^^------------------------------------- argument #6 of type `&BTreeSet<u32>` is missing
+     |
+note: method defined here
+    --> crates\victory-gpu\src\descriptor\host.rs:1124:8
+     |
+1124 |     fn sweep_part(
+     |        ^^^^^^^^^^
+...
+1131 |         queued: &std::collections::BTreeSet<u32>,
+     |         ----------------------------------------
+help: provide the argument
+     |
+3073 |         host.sweep_part(0..8, handle, 50, true, &mut counts, /* &BTreeSet<u32> */);
+     |                                                            ++++++++++++++++++++++
+
+For more information about this error, try `rustc --explain E0061`.
+error: could not compile `victory-gpu` (lib test) due to 2 previous errors

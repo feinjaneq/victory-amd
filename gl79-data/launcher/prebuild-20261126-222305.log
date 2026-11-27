@@ -1,0 +1,41 @@
+> C:\Users\Janeq\.config\freebuff-desktop\local-projects\f5d5af6a-46c0-4a93-9559-a06120a29c94\_gl79\target\diag\victory.exe shaders --jobs 10
+
+[2m2026-11-26T21:23:06.006879Z[0m [32m INFO[0m [2mvictory_gpu::tdr[0m[2m:[0m GPU timeout detection (TdrLevel, TdrDelay, TdrDdiDelay) [3mlevel[0m[2m=[0m0 [3mdelay[0m[2m=[0m60 [3mddi_delay[0m[2m=[0mdefault
+[2m2026-11-26T21:23:06.006917Z[0m [33m WARN[0m [2mvictory_gpu::tdr[0m[2m:[0m TdrLevel is 0: Windows never resets a hung GPU, so a GPU hang freezes the whole PC instead of ending the run with a device removal; delete TdrLevel (or set it to 3) and raise TdrDelay to give slow frames room
+[2m2026-11-26T21:23:06.006938Z[0m [32m INFO[0m [2mvictory_gpu::host[0m[2m:[0m host wave lanes [3mmin[0m[2m=[0m32 [3mmax[0m[2m=[0m64
+[2m2026-11-26T21:23:06.011557Z[0m [32m INFO[0m [2mvictory_gpu::host[0m[2m:[0m host D3D12 device ready
+[2m2026-11-26T21:23:06.105427Z[0m [32m INFO[0m [2mvictory_gpu::descriptor::host[0m[2m:[0m host view heaps hold 2097152 views; view indices are clamped to the null slot at the end from the first shader on [3mviews[0m[2m=[0m2097152 [3mraw_twins[0m[2m=[0mtrue
+1000 shaders in the cache, 91 s
+2000 shaders in the cache, 92 s
+3000 shaders in the cache, 93 s
+4000 shaders in the cache, 94 s
+5000 shaders in the cache, 94 s
+6000 shaders in the cache, 95 s
+7000 shaders in the cache, 96 s
+8000 shaders in the cache, 97 s
+9000 shaders in the cache, 97 s
+10000 shaders in the cache, 98 s
+11000 shaders in the cache, 99 s
+12000 shaders in the cache, 99 s
+13000 shaders in the cache, 100 s
+14000 shaders in the cache, 100 s
+15000 shaders in the cache, 101 s
+16000 shaders in the cache, 102 s
+17000 shaders in the cache, 102 s
+18000 shaders in the cache, 103 s
+19000 shaders in the cache, 104 s
+20000 shaders in the cache, 104 s
+21000 shaders in the cache, 105 s
+22000 shaders in the cache, 106 s
+23000 shaders in the cache, 107 s
+24000 shaders in the cache, 108 s
+25000 shaders in the cache, 108 s
+25782 shaders in the cache, 203 do not translate, 109 s
+    198  converter shader.dxil v1: GFX10 code at 0x0: a container without a vertex, pixel, compute or mesh program is not supported  (e.g. 4c5fc5c67358e92c)
+      1  converter shader.dxil v1: GFX10 code at 0x1d70: a descriptor read only as data is not supported  (e.g. 002e93a6cc2aa355)
+      1  converter shader.dxil v1: GFX10 code at 0x1e18: a descriptor read only as data is not supported  (e.g. 0e64f14fae060d04)
+      1  converter shader.dxil v1: GFX10 code at 0x1e48: a descriptor read only as data is not supported  (e.g. dbdbf36298727135)
+      1  converter shader.dxil v1: GFX10 code at 0x1e70: a descriptor read only as data is not supported  (e.g. 96ccb14ef981fd85)
+      1  converter shader.dxil v1: GFX10 code at 0x2070: a descriptor read only as data is not supported  (e.g. 07c93bfb77fecebb)
+
+[exit 0]

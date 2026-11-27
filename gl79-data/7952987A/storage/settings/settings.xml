@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<rage__fwSystemSettingsCollection>
+  <versionMajor value="6" />
+  <versionMinor value="0" />
+  <graphics>
+    <versionMajor value="6" />
+    <versionMinor value="0" />
+    <hdr value="false" />
+    <hdrIntensity value="50" />
+    <hdrPeakBrightnessUIDefaultNits value="600" />
+    <hdrPeakBrightnessGameDefaultNits value="1000" />
+    <hdrPeakBrightnessManuallyChanged value="false" />
+    <hdrPeakBrightness value="1000" />
+    <hdrBlackLevels value="50" />
+    <hdrFilmicMode value="true" />
+    <gamma value="27" />
+    <anisotropicFiltering value="0" />
+    <desiredFPS value="30" />
+    <fsrQuality value="0" />
+    <graphicsQualityPreset value="0.000000" />
+  </graphics>
+  <advancedGraphics>
+    <versionMajor value="6" />
+    <versionMinor value="0" />
+    <asyncComputeEnabled value="true" />
+    <damageModelsEnabled value="true" />
+    <decorationResolutionShift value="1" />
+    <directionalScreenSpaceShadowQuality value="0.000000" />
+    <fsrSharpen value="0.200000" />
+    <grassLod value="0.800000" />
+    <lodScale value="1.000000" />
+    <texLodScale_Global value="1.000000" />
+    <texLodScale_Mat_High value="0.250000" />
+    <texLodScale_Mat_Med value="0.500000" />
+    <texLodScale_Mat_Low value="1.000000" />
+    <texLodScale_Buildings value="1.000000" />
+    <texLodScale_Objects value="1.000000" />
+    <texLodScale_HD value="1.000000" />
+    <texLodScale_OrphanHD value="1.000000" />
+    <texLodScale_LOD value="2.000000" />
+    <texLodScale_SLOD1 value="4.000000" />
+    <texLodScale_SLOD2 value="8.000000" />
+    <texLodScale_SLOD3 value="16.000000" />
+    <texLodScale_SLOD4 value="32.000000" />
+    <smallCullThreshold value="1.000000" />
+    <maxTexUpgradesPerFrame value="5" />
+    <lensFlaresScreenResDivExponent value="2" />
+    <motionBlur value="true" />
+    <motionBlurLimit value="16.000000" />
+    <motionBlurScale value="1.000000" />
+    <rtLODLightShadows value="false" />
+    <rtDynamicShadows value="true" />
+    <shadowAlphaTintedShadows value="false" />
+    <shadowLongShadows value="false" />
+    <shadowParticleShadows value="true" />
+    <sharpenEnabled value="true" />
+    <sharpenIntensity value="1.000000" />
+    <ssroSampleCount value="2" />
+    <transferQueuesEnabled value="true" />
+    <treeTessellationEnabled value="false" />
+    <vehicleLodBias value="0.000000" />
+    <vehicleHDCount value="0" />
+    <volumetricsRaymarchResolutionUnclamped value="false" />
+    <waterReflectionResX value="512" />
+    <waterReflectionResY value="256" />
+    <waterReflectionSSR value="true" />
+    <worldHeightShadowQuality value="0.000000" />
+    <mapMSAA value="false" />
+    <vrsEnabled value="false" />
+    <manualMipBias value="-1.500000" />
+  </advancedGraphics>
+  <video>
+    <versionMajor value="6" />
+    <versionMinor value="0" />
+    <uiOverlay value="true" />
+    <uiResolution>
+      <width value="3840" />
+      <height value="2160" />
+    </uiResolution>
+    <adapterIndex value="0" />
+    <outputIndex value="0" />
+    <refreshRate>
+      <numerator value="60" />
+      <denominator value="1" />
+    </refreshRate>
+    <resolutionFullscreen>
+      <width value="1920" />
+      <height value="1080" />
+    </resolutionFullscreen>
+    <tripleBuffered value="false" />
+    <frameRateLimit value="30" />
+    <vSync value="2" />
+  </video>
+  <videoCardDescription>Xbox Series S</videoCardDescription>
+  <ai>
+    <versionMajor value="6" />
+    <versionMinor value="0" />
+  </ai>
+  <audio>
+    <versionMajor value="6" />
+    <versionMinor value="0" />
+    <lowFrequencySoundUpdate value="false" />
+  </audio>
+  <population>
+    <versionMajor value="6" />
+    <versionMinor value="0" />
+  </population>
+  <physics>
+    <versionMajor value="6" />
+    <versionMinor value="0" />
+  </physics>
+</rage__fwSystemSettingsCollection>

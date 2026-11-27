@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Victory — Grand Theft Auto VI</title>
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body>
+    <div class="frame">
+      <aside class="rail">
+        <div class="brand">
+          <span class="brand-mark">V</span>
+          <span class="brand-text">
+            <strong>Victory</strong>
+            <em>GTA VI launcher</em>
+          </span>
+        </div>
+
+        <nav class="rail-nav">
+          <p class="rail-label">My library</p>
+          <button class="row is-active" data-tab="games" type="button">
+            <span class="row-art">VI</span>
+            <span class="row-name">Grand Theft Auto VI</span>
+          </button>
+
+          <p class="rail-label">Tools</p>
+          <button class="row" data-tab="workshop" type="button">
+            <span class="row-glyph" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="15" height="15"><path d="M8 1.8 13.4 4.9v6.2L8 14.2 2.6 11.1V4.9z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2.8 5 8 8.1l5.2-3.1M8 8.1v6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="row-name">Shader cache</span>
+          </button>
+          <button class="row" data-tab="settings" type="button">
+            <span class="row-glyph" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2 4.2h7.2M12 4.2h2M2 11.8h2M6.8 11.8H14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="10.6" cy="4.2" r="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="5.4" cy="11.8" r="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+            </span>
+            <span class="row-name">Paths &amp; commands</span>
+          </button>
+        </nav>
+
+        <div class="rail-foot">
+          <div class="rig">
+            <strong>Radeon RX 6600</strong>
+            <span>8 GB · Ryzen 5 5600 · 32 GB</span>
+          </div>
+          <button class="quit" id="quit" type="button">Quit</button>
+        </div>
+      </aside>
+
+      <main class="stage">
+        <header class="topbar">
+          <div class="tabs" role="tablist" aria-label="Sections">
+            <span class="tab-pill" aria-hidden="true"></span>
+            <button class="tab is-active" role="tab" aria-selected="true" data-tab="games" type="button">Games</button>
+            <button class="tab" role="tab" aria-selected="false" data-tab="workshop" type="button">Workshop</button>
+            <button class="tab" role="tab" aria-selected="false" data-tab="settings" type="button">Settings</button>
+          </div>
+          <span class="net" id="net"><i></i><span>ready</span></span>
+        </header>
+
+        <div class="views">
+          <section class="view is-active" id="view-games" role="tabpanel">
+            <div class="hero">
+              <div class="hero-art"></div>
+              <div class="hero-copy">
+                <p class="eyebrow">Rage engine <span>·</span> v1.0.2.1 <span>·</span> Xbox Series dump</p>
+                <h1><span>Grand Theft Auto</span><b>VI</b></h1>
+                <p class="hero-line" id="profile-line">Series S · 1280×720 · FSR 4.1.2 + frame generation</p>
+
+                <div class="launch">
+                  <button class="play" id="play" type="button">
+                    <span class="play-text" id="play-text">Play</span>
+                    <span class="play-dot" aria-hidden="true"></span>
+                  </button>
+                  <button class="play-more" id="play-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Pick how to run">
+                    <svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true"><path d="M1 1.5 6 6.5l5-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+
+                  <div class="menu" id="mode-menu" role="menu" aria-labelledby="play-more">
+                    <p class="menu-head">Run the title as</p>
+                    <button class="menu-item" role="menuitemradio" aria-checked="true" data-mode="optimized" type="button">
+                      <span class="mi-main"><span class="mi-name">Optimized</span><span class="mi-badge">Recommended</span></span>
+                      <span class="mi-detail">Series S · 1280×720 · FSR 4.1.2 + frame generation</span>
+                      <span class="mi-note">~9–13 fps shown · the profile this card was measured for</span>
+                      <svg class="mi-check" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 8.4 6.3 12 13 4.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <button class="menu-item" role="menuitemradio" aria-checked="false" data-mode="normal" type="button">
+                      <span class="mi-main"><span class="mi-name">Normal</span><span class="mi-badge is-muted">Unoptimized</span></span>
+                      <span class="mi-detail">Series X · 1920×1080 · no upscaler, no generated frames</span>
+                      <span class="mi-note">the plain emulator run · expect a few fps</span>
+                      <svg class="mi-check" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 8.4 6.3 12 13 4.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+                </div>
+
+                <p class="runline" id="runline"><i></i>Ready</p>
+              </div>
+              <div class="hero-fade"></div>
+            </div>
+
+            <div class="under">
+              <div class="stats">
+                <div class="stat"><span>Frame rate</span><strong id="stat-fps">—</strong></div>
+                <div class="stat"><span>Frame time</span><strong id="stat-ms">—</strong></div>
+                <div class="stat"><span>Card memory</span><strong id="stat-card">—</strong></div>
+                <div class="stat"><span>Shader cache</span><strong id="stat-cache">—</strong></div>
+              </div>
+
+              <div class="console" id="console">
+                <button class="console-head" id="console-toggle" type="button">
+                  <i></i>
+                  <span id="log-name">run log</span>
+                  <span class="console-more">expand</span>
+                </button>
+                <div class="console-body"><pre id="log-tail">No run yet — pick a mode and press Play.</pre></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="view" id="view-workshop" role="tabpanel">
+            <div class="panel-head">
+              <p class="eyebrow">Workshop</p>
+              <h2>Shader cache</h2>
+              <p>Every pipeline the title compiles lands in this cache. Building it once means the first minutes of an open world are not spent compiling.</p>
+            </div>
+
+            <div class="cards">
+              <div class="card">
+                <span class="card-label">Cached files</span>
+                <strong id="ws-files">—</strong>
+                <span class="card-note" id="ws-size">— on disk</span>
+              </div>
+              <div class="card">
+                <span class="card-label">Folder</span>
+                <code class="card-path" id="ws-dir">—</code>
+                <button class="link" data-open="cache" type="button">Open folder</button>
+              </div>
+              <div class="card">
+                <span class="card-label">Build</span>
+                <code class="card-path" id="ws-build">—</code>
+                <button class="link" data-open="logs" type="button">Open logs</button>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn" id="prebuild" type="button">Prebuild shaders</button>
+              <span class="actions-note" id="prebuild-note">Runs <code>victory shaders --jobs 10</code> once; a few minutes.</span>
+            </div>
+
+            <div class="console is-open" id="ws-console">
+              <button class="console-head" id="ws-toggle" type="button">
+                <i></i>
+                <span id="ws-log-name">prebuild log</span>
+                <span class="console-more">collapse</span>
+              </button>
+              <div class="console-body"><pre id="ws-log">No prebuild yet in this session.</pre></div>
+            </div>
+          </section>
+
+          <section class="view" id="view-settings" role="tabpanel">
+            <div class="panel-head">
+              <p class="eyebrow">Settings</p>
+              <h2>What Play runs</h2>
+              <p>Two exact command lines, no hidden switches. The launcher only starts them and reads their output.</p>
+            </div>
+
+            <div class="cmd-list" id="cmd-list"></div>
+
+            <div class="panel-head is-tight">
+              <p class="eyebrow">Paths</p>
+              <h2>Where things are</h2>
+            </div>
+            <ul class="paths" id="paths"></ul>
+
+            <p class="fineprint">
+              Series S draws a picture only with the PC FidelityFX SDK present — without it the smaller console has no
+              upscaler to answer and the world comes out black. Series X is the fallback: no upscaler, no generated frames.
+            </p>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script src="/js/app.js" defer></script>
+  </body>
+</html>
