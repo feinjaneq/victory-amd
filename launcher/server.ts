@@ -25,7 +25,7 @@ const GAME_EXE = "game_scarlett_master.exe";
 const SETTINGS_FILE = join(ROOT, "gl79-data", "settings.json");
 const PICKER = join(HERE, "pick-folder.ps1");
 
-type Settings = { gameDir: string | null; memoryStack: boolean };
+type Settings = { gameDir: string | null; memoryStack: boolean; record: boolean };
 
 // Read on every use, so a folder chosen in the window applies without a restart,
 // and a missing or damaged file just means the defaults (it cannot break a setup
@@ -36,9 +36,10 @@ function settings(): Settings {
     return {
       gameDir: typeof raw.gameDir === "string" && raw.gameDir.trim() !== "" ? raw.gameDir : null,
       memoryStack: raw.memoryStack === true,
+      record: raw.record === true,
     };
   } catch {
-    return { gameDir: null, memoryStack: false };
+    return { gameDir: null, memoryStack: false, record: false };
   }
 }
 
@@ -141,9 +142,14 @@ const runArgv = (mode: Mode, exe: string) => [
   profileNow(),
   ...mode.args,
   ...(settings().memoryStack ? ["-MemoryStack"] : []),
+  ...(settings().record ? ["-Record"] : []),
 ];
 
 const prebuildArgv = () => [buildExeNow(), "shaders", "--jobs", "10"];
+
+// The pipelines a recorded run wrote down, made ahead of the next run: what
+// stops a frame from dropping the draws whose pipeline is still being made.
+const warmArgv = () => [buildExeNow(), "warm", "--used", "--jobs", "8"];
 
 // Byte for byte the command the README gives, so the button and a terminal agree.
 const BUILD_ARGV = ["cargo", "build", "--locked", "--profile", "diag", "-p", "victory", "--features", "diagnostics"];
@@ -151,7 +157,7 @@ const BUILD_ARGV = ["cargo", "build", "--locked", "--profile", "diag", "-p", "vi
 /* ---------- jobs ---------- */
 
 type Job = {
-  kind: "run" | "prebuild" | "build";
+  kind: "run" | "prebuild" | "build" | "warm";
   mode?: Mode;
   log: string;
   startedAt: number;
@@ -161,7 +167,12 @@ type Job = {
 };
 
 let active: Job | null = null; // at most one job, ever
-const latest: { run: Job | null; prebuild: Job | null; build: Job | null } = { run: null, prebuild: null, build: null };
+const latest: { run: Job | null; prebuild: Job | null; build: Job | null; warm: Job | null } = {
+  run: null,
+  prebuild: null,
+  build: null,
+  warm: null,
+};
 let lastSeen = Date.now();
 
 const quote = (arg: string) => (/\s/.test(arg) ? `"${arg}"` : arg);
@@ -288,6 +299,11 @@ function startPrebuild() {
   return start("prebuild", prebuildArgv(), "prebuild");
 }
 
+function startWarm() {
+  if (!existsSync(buildExeNow())) return { error: `missing build: ${buildExeNow()}${buildHint()}` };
+  return start("warm", warmArgv(), "warm");
+}
+
 function stop() {
   if (!active) return { error: "nothing is running" };
   Bun.spawn(["taskkill", "/PID", String(active.proc.pid), "/T", "/F"], { stdio: ["ignore", "ignore", "ignore"] });
@@ -373,6 +389,7 @@ async function snapshot() {
   const run = latest.run;
   const prebuild = latest.prebuild;
   const build = latest.build;
+  const warm = latest.warm;
   const running = run?.exit === null ? run : null;
   const cache = cacheStats();
   const runLog = await tail(run?.log ?? "");
@@ -393,16 +410,26 @@ async function snapshot() {
       running: prebuild?.exit === null,
       exit: prebuild?.exit ?? null,
       logPath: prebuild?.log ?? null,
+      startedAt: prebuild?.startedAt ?? null,
       log: (await tailLines(prebuild, 16_000)).slice(-200),
     },
     build: {
       running: build?.exit === null,
       exit: build?.exit ?? null,
       logPath: build?.log ?? null,
+      startedAt: build?.startedAt ?? null,
       log: (await tailLines(build, 16_000)).slice(-200),
+    },
+    warm: {
+      running: warm?.exit === null,
+      exit: warm?.exit ?? null,
+      logPath: warm?.log ?? null,
+      startedAt: warm?.startedAt ?? null,
+      log: (await tailLines(warm, 16_000)).slice(-200),
     },
     source: hasSource(),
     memoryStack: settings().memoryStack,
+    record: settings().record,
     paths: {
       game: gameExeNow() ?? join(gameDirNow(), GAME_EXE),
       gameDir: gameDirNow(),
@@ -506,13 +533,21 @@ function setMemoryStack(on: unknown) {
   return { ok: true, memoryStack: on };
 }
 
+function setRecord(on: unknown) {
+  if (typeof on !== "boolean") return { error: "expected true or false" };
+  saveSettings({ record: on });
+  return { ok: true, record: on };
+}
+
 async function route(req: Request, url: URL) {
   if (url.pathname === "/api/state") return json(await snapshot());
   if (url.pathname === "/api/game-dir") return json(await pickGameDir());
   if (url.pathname === "/api/memory-stack") return json(setMemoryStack((await body(req)).on));
+  if (url.pathname === "/api/record") return json(setRecord((await body(req)).on));
   if (url.pathname === "/api/play") return json(startRun(String((await body(req)).mode ?? "")));
   if (url.pathname === "/api/stop") return json(stop());
   if (url.pathname === "/api/prebuild") return json(startPrebuild());
+  if (url.pathname === "/api/warm") return json(startWarm());
   if (url.pathname === "/api/build") return json(startBuild());
   if (url.pathname === "/api/open") return json(openFolder(String((await body(req)).target ?? "")));
   if (url.pathname === "/api/quit") {

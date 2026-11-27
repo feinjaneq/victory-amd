@@ -154,6 +154,11 @@
               <span class="actions-note" id="prebuild-note">Runs <code>victory shaders --jobs 10</code> once; a few minutes.</span>
             </div>
 
+            <div class="actions">
+              <button class="btn" id="warm" type="button">Warm pipelines</button>
+              <span class="actions-note" id="warm-note">Runs <code>victory warm --used</code> over the pipelines a recorded run wrote down; about a minute.</span>
+            </div>
+
             <div class="console is-open" id="ws-console">
               <button class="console-head" id="ws-toggle" type="button">
                 <i></i>
@@ -191,6 +196,11 @@
                 <span class="card-label">Memory stack</span>
                 <span class="card-note" id="memory-note">—</span>
                 <button class="link" id="memory-toggle" type="button">Turn on</button>
+              </div>
+              <div class="card">
+                <span class="card-label">Record pipelines</span>
+                <span class="card-note" id="record-note">—</span>
+                <button class="link" id="record-toggle" type="button">Turn on</button>
               </div>
             </div>
 

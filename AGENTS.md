@@ -11,7 +11,11 @@ fork's own 8 GB script in one of two modes, both in English:
 
 ```
 start-launcher.cmd          entry point; starts launcher/server.ts with bun
-launcher/server.ts          Bun server: state, play, stop, prebuild, build, logs
+prebuild-shaders.cmd        shader cache + Warm pipelines, from a terminal
+diagnose.cmd                one session: frame-time numbers and popwatch pictures
+launcher/server.ts          Bun server: state, play, stop, prebuild, warm, build, logs
+launcher/prebuild.ps1       the prebuild-shaders.cmd work
+launcher/diagnose.ps1       the diagnose.cmd work
 launcher/pick-folder.ps1    the native folder dialog behind Settings
 launcher/public/            the window (HTML/CSS/JS, hero art)
 gl79-data/launcher/         run and prebuild logs, one file per run
@@ -37,6 +41,12 @@ passed as `VICTORY_GAME_DIR`. Until something is saved, the launcher uses
 `C:\Users\Janeq\Downloads\GTA6.Xbox.v1.0.2.1-CYBERLEEK\` (executable
 `game_scarlett_master.exe`). Do not put a game path back into `server.ts` and do not
 turn the button into a README step.
+
+Pipelines still being made are what make a frame lose and regain its draws:
+Settings → **Record pipelines** makes Play pass `-Record`, `Workshop → Warm
+pipelines` (and `prebuild-shaders.cmd`) runs `victory warm --used` over what a
+recorded run wrote down. Keep the recorded pipeline book with the cache, not in
+this repository.
 
 The memory stack lives in `memory-stack/` (patches + the author's docs + `PORTED.md`).
 Its switches stay off in the runtime; Settings → Memory stack makes Play pass

@@ -25,6 +25,8 @@ const el = {
   wsBuild: $("#ws-build"),
   prebuild: $("#prebuild"),
   prebuildNote: $("#prebuild-note"),
+  warm: $("#warm"),
+  warmNote: $("#warm-note"),
   build: $("#build-runtime"),
   buildNote: $("#build-note"),
   wsConsole: $("#ws-console"),
@@ -38,6 +40,8 @@ const el = {
   pickGame: $("#pick-game-dir"),
   memoryNote: $("#memory-note"),
   memoryToggle: $("#memory-toggle"),
+  recordNote: $("#record-note"),
+  recordToggle: $("#record-toggle"),
 };
 
 let mode = localStorage.getItem("run-mode") === "normal" ? "normal" : "optimized";
@@ -242,6 +246,11 @@ function render() {
     ? "On: Play passes -MemoryStack, and the runtime turns its 15 memory switches on for that run."
     : "Off: Play runs the runtime as it shipped, every memory switch at its default.";
 
+  el.recordToggle.textContent = data.record ? "Turn off" : "Turn on";
+  el.recordNote.textContent = data.record
+    ? "On: Play passes -Record, so the run writes down every pipeline it makes. Warm pipelines then makes them ahead of the next run."
+    : "Off: Play writes no pipeline book down, so Warm pipelines has nothing new to make.";
+
   showRunline();
 
   el.logName.textContent = data.logPath?.split(/[\\/]/).pop() ?? "run log";
@@ -251,6 +260,7 @@ function render() {
 
   const pre = data.prebuild;
   const bld = data.build;
+  const war = data.warm;
   const busy = data.busy !== null;
 
   el.build.disabled = busy;
@@ -270,6 +280,7 @@ function render() {
   }
 
   el.prebuild.disabled = busy;
+  el.warm.disabled = busy;
   if (pre.running) {
     el.prebuild.textContent = "Building…";
     el.prebuildNote.textContent = "victory shaders --jobs 10 is running.";
@@ -281,8 +292,22 @@ function render() {
       : `Last build exited with code ${pre.exit}.`;
   }
 
-  // One console: show whichever of the two was used last.
-  const shown = bld.running || (!pre.logPath && bld.logPath) ? bld : pre;
+  if (war.running) {
+    el.warm.textContent = "Warming…";
+    el.warmNote.textContent = "victory warm --used is running; a minute or so.";
+  } else {
+    el.warm.textContent = "Warm pipelines";
+    el.warmNote.textContent =
+      war.exit === null ? "Runs victory warm --used over the pipelines a recorded run wrote down; about a minute."
+      : war.exit === 0 ? "Made the pipelines a recorded run wrote down."
+      : `Nothing was made: no run has recorded its pipelines yet (exit ${war.exit}). Settings → Record pipelines, play a little, then warm.`;
+  }
+
+  // One console: show whichever of the three was used last.
+  const chosen = [pre, war, bld]
+    .filter((job) => job.logPath)
+    .sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0))[0];
+  const shown = chosen ?? pre;
   if (shown.logPath) el.wsLogName.textContent = shown.logPath.split(/[\\/]/).pop();
   if (shown.log.length) {
     el.wsLog.textContent = shown.log.filter((line) => line.trim() !== "").slice(-40).join("\n");
@@ -418,6 +443,24 @@ el.memoryToggle.addEventListener("click", async () => {
   const res = await api("/api/memory-stack", { on: !data?.memoryStack });
   el.memoryToggle.disabled = false;
   if (res.error) el.memoryNote.textContent = res.error;
+  poll();
+});
+
+el.recordToggle.addEventListener("click", async () => {
+  el.recordToggle.disabled = true;
+  const res = await api("/api/record", { on: !data?.record });
+  el.recordToggle.disabled = false;
+  if (res.error) el.recordNote.textContent = res.error;
+  poll();
+});
+
+el.warm.addEventListener("click", async () => {
+  el.warm.disabled = true;
+  const res = await api("/api/warm", {});
+  if (res.error) {
+    el.warmNote.textContent = res.error;
+    el.warm.disabled = false;
+  }
   poll();
 });
 

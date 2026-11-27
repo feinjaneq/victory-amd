@@ -50,11 +50,36 @@ once on and read **Card memory** on the Games tab.
   memory / shader cache, and the run log (click its header to expand).
 - **Workshop** — **Build runtime** (compiles `victory.exe`), **Prebuild
   shaders** (fills the shader cache so a run does not start by compiling),
-  cache size, and the compiler log. The same prebuild from a terminal is
-  `prebuild-shaders.cmd` (`-Plan` shows what it would run).
-- **Settings** — the two exact command lines Play runs (with `-MemoryStack` when
-  the toggle is on), every path the launcher uses with a dot for whether it was
-  found, **Choose folder…** for the game folder, and the memory stack toggle.
+  **Warm pipelines** (makes the host pipelines a recorded run wrote down, so a
+  frame never drops the draws still waiting for one), cache size, and the
+  compiler log. The same two passes from a terminal are `prebuild-shaders.cmd`
+  (`-Plan` shows what it would run).
+- **Settings** — the two exact command lines Play runs (with `-MemoryStack` and
+  `-Record` when those toggles are on), every path the launcher uses with a dot
+  for whether it was found, **Choose folder…** for the game folder, the memory
+  stack toggle, and the record toggle.
+
+## Pipelines that are still being made
+
+A frame that needs a pipeline the driver is still compiling leaves that draw
+out, so the picture loses and regains pieces. **Settings → Record pipelines**
+makes Play pass `-Record` (the run writes down every pipeline it creates);
+**Workshop → Warm pipelines** then runs `victory warm --used` over what a
+recorded run wrote down — on this machine 2,991 pipelines in ten seconds. The
+loop is: record on → play a little → warm → record off. `warm` goes on where it
+stopped, so it is safe to run again after another recorded session.
+
+## Measuring a session
+
+`diagnose.cmd` runs one session with the run's own per-five-second statistics
+and the popwatch diagnostic (`crates/victory-gpu/src/popwatch.rs`): every
+presented frame is read back, made small and compared with its neighbours;
+blocks that one frame shows otherwise than the frames before and after it are
+counted, and the three pictures around each are saved. It prints the median and
+p90 frame time, the last pipeline drops and the popwatch totals when the game
+quits. Run it in **Normal**: Optimized composes its two planes into one picture
+and popwatch skips composed frames (`-Mode optimized` still measures frame
+time).
 
 **Stop** ends the run and everything it started. **Quit** (bottom left) closes
 the window and the server. Closing the window alone is enough too: two minutes
