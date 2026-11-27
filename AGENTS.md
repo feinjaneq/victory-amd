@@ -32,5 +32,5 @@ uses its real name.
 ## After every build
 
 Commit the change and push it to GitHub
-(`git push origin main`, remote `feinjaneq/victory-gta6-launcher`). Do this
+(`git push origin main`, remote `feinjaneq/victory-amd`, private). Do this
 after each new build, not only at the end of a session.
