@@ -11,12 +11,62 @@
 // Every process is a child of this server, so "Stop" ends the whole tree and
 // the window closing (no requests for two minutes) ends the server too.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const HERE = import.meta.dir; // <root>/launcher
 const ROOT = join(HERE, "..");
-const GAME_DIR = "C:\\Users\\Janeq\\Downloads\\GTA6.Xbox.v1.0.2.1-CYBERLEEK";
+
+// Nothing below is fixed: the game folder is whatever Settings > Choose folder
+// set. Until it is set, the folder this launcher was written for.
+const DEFAULT_GAME_DIR = "C:\\Users\\Janeq\\Downloads\\GTA6.Xbox.v1.0.2.1-CYBERLEEK";
+const GAME_EXE = "game_scarlett_master.exe";
+const SETTINGS_FILE = join(ROOT, "gl79-data", "settings.json");
+const PICKER = join(HERE, "pick-folder.ps1");
+
+type Settings = { gameDir: string | null; memoryStack: boolean };
+
+// Read on every use, so a folder chosen in the window applies without a restart,
+// and a missing or damaged file just means the defaults (it cannot break a setup
+// that already works).
+function settings(): Settings {
+  try {
+    const raw = JSON.parse(readFileSync(SETTINGS_FILE, "utf8")) as Partial<Settings>;
+    return {
+      gameDir: typeof raw.gameDir === "string" && raw.gameDir.trim() !== "" ? raw.gameDir : null,
+      memoryStack: raw.memoryStack === true,
+    };
+  } catch {
+    return { gameDir: null, memoryStack: false };
+  }
+}
+
+function saveSettings(patch: Partial<Settings>) {
+  const next = { ...settings(), ...patch };
+  mkdirSync(join(ROOT, "gl79-data"), { recursive: true });
+  writeFileSync(SETTINGS_FILE, `${JSON.stringify(next, null, 2)}\n`);
+  return next;
+}
+
+const gameDirNow = () => settings().gameDir ?? DEFAULT_GAME_DIR;
+
+// The executable Play starts: the title's own name in the folder, or the only .exe
+// there (a copy named differently), or nothing at all.
+function gameExeIn(dir: string): string | null {
+  const known = join(dir, GAME_EXE);
+  if (existsSync(known)) return known;
+  let exes: string[];
+  try {
+    exes = readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && /\.exe$/i.test(entry.name))
+      .map((entry) => join(dir, entry.name));
+  } catch {
+    return null;
+  }
+  return exes.length === 1 ? exes[0] : null;
+}
+
+const gameExeNow = () => gameExeIn(gameDirNow());
 
 const REPO = join(ROOT, "_gl79");
 const SNAPSHOT = join(ROOT, "fork");
@@ -54,8 +104,6 @@ const P = {
   data: join(ROOT, "gl79-data"),
   cache: join(ROOT, "gl79-data", "cache-gl79"),
   logs: join(ROOT, "gl79-data", "launcher"),
-  game: join(GAME_DIR, "game_scarlett_master.exe"),
-  gameDir: GAME_DIR,
 };
 
 type Mode = { id: "optimized" | "normal"; name: string; badge: string; detail: string; args: string[] };
@@ -77,8 +125,22 @@ const MODES: Mode[] = [
   },
 ];
 
-const runArgv = (mode: Mode) =>
-  ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", P.script, "-Exe", P.game, "-Build", profileNow(), ...mode.args];
+const runArgv = (mode: Mode, exe: string) => [
+  "powershell",
+  "-NoProfile",
+  "-ExecutionPolicy",
+  "Bypass",
+  "-WindowStyle",
+  "Hidden",
+  "-File",
+  P.script,
+  "-Exe",
+  exe,
+  "-Build",
+  profileNow(),
+  ...mode.args,
+  ...(settings().memoryStack ? ["-MemoryStack"] : []),
+];
 
 const prebuildArgv = () => [buildExeNow(), "shaders", "--jobs", "10"];
 
@@ -102,7 +164,7 @@ const latest: { run: Job | null; prebuild: Job | null; build: Job | null } = { r
 let lastSeen = Date.now();
 
 const quote = (arg: string) => (/\s/.test(arg) ? `"${arg}"` : arg);
-const commandOf = (mode: Mode) => runArgv(mode).map(quote).join(" ");
+const commandOf = (mode: Mode) => runArgv(mode, gameExeNow() ?? join(gameDirNow(), GAME_EXE)).map(quote).join(" ");
 
 function stamp() {
   const d = new Date();
@@ -115,7 +177,7 @@ function childEnv() {
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
   // play-rx6600.ps1 drops every VICTORY_* it does not keep, so only these stay.
   env.VICTORY_CONFIG = P.config;
-  env.VICTORY_GAME_DIR = P.gameDir;
+  env.VICTORY_GAME_DIR = gameDirNow();
   env.VICTORY_CACHE_DIR = P.cache;
   env.VICTORY_DATA_DIR = P.data;
   return env;
@@ -190,16 +252,32 @@ function startBuild() {
   return start("build", BUILD_ARGV, "build");
 }
 
+// Says what is wrong with the game folder, and what fixes it.
+function gameHint() {
+  const dir = gameDirNow();
+  if (!existsSync(dir)) return `missing game: ${dir} is not there. Use Settings > Choose folder to point at your copy.`;
+  let exes = 0;
+  try {
+    exes = readdirSync(dir).filter((name) => /\.exe$/i.test(name)).length;
+  } catch {
+    return `missing game: ${dir} cannot be read. Use Settings > Choose folder to pick it again.`;
+  }
+  if (exes > 1)
+    return `missing game: ${dir} holds ${exes} executables, none of them ${GAME_EXE}. Use Settings > Choose folder to pick the folder that has it.`;
+  return `missing game: ${dir} has no ${GAME_EXE}. Use Settings > Choose folder to point at your copy.`;
+}
+
 function startRun(modeId: string) {
   const mode = MODES.find((m) => m.id === modeId);
   if (!mode) return { error: "unknown mode" };
   if (!hasSource()) provisionSource();
   if (!existsSync(P.script)) return { error: `missing script: ${P.script}` };
   if (!existsSync(buildExeNow())) return { error: `missing build: ${buildExeNow()}${buildHint()}` };
-  if (!existsSync(P.game)) return { error: `missing game: ${P.game}` };
+  const exe = gameExeNow();
+  if (!exe) return { error: gameHint() };
   if (mode.args.includes("-FidelityFxDir") && !existsSync(join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")))
     return { error: `missing FidelityFX: ${join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")}` };
-  return start("run", runArgv(mode), `run-${mode.id}`, mode);
+  return start("run", runArgv(mode, exe), `run-${mode.id}`, mode);
 }
 
 function startPrebuild() {
@@ -321,8 +399,10 @@ async function snapshot() {
       log: (await tailLines(build, 16_000)).slice(-200),
     },
     source: hasSource(),
+    memoryStack: settings().memoryStack,
     paths: {
-      game: P.game,
+      game: gameExeNow() ?? join(gameDirNow(), GAME_EXE),
+      gameDir: gameDirNow(),
       build: buildExeNow(),
       profile: profileNow(),
       script: P.script,
@@ -331,7 +411,7 @@ async function snapshot() {
       logs: P.logs,
     },
     checks: {
-      game: existsSync(P.game),
+      game: gameExeNow() !== null,
       build: existsSync(buildExeNow()),
       script: existsSync(P.script),
       ffx: existsSync(join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")),
@@ -374,10 +454,10 @@ function staticFile(pathname: string) {
   return new Response(Bun.file(file), { headers: { "content-type": type } });
 }
 
-const OPENABLE: Record<string, string> = { logs: P.logs, cache: P.cache, game: P.gameDir, data: P.data, repo: P.repo };
+const openable = (): Record<string, string> => ({ logs: P.logs, cache: P.cache, game: gameDirNow(), data: P.data, repo: P.repo });
 
 function openFolder(target: string) {
-  const dir = OPENABLE[target];
+  const dir = openable()[target];
   if (!dir || !existsSync(dir)) return { error: `missing: ${target}` };
   Bun.spawn(["explorer.exe", dir], { stdio: ["ignore", "ignore", "ignore"] });
   return { ok: true };
@@ -388,8 +468,45 @@ function isLocal(req: Request, url: URL) {
   return ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) && (!origin || /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(origin));
 }
 
+// The window's "Choose folder" button: a native folder dialog, and the folder it
+// returns saved as the game folder.
+async function pickGameDir() {
+  if (!existsSync(PICKER)) return { error: `missing picker: ${PICKER}` };
+
+  let proc: ReturnType<typeof Bun.spawn>;
+  try {
+    proc = Bun.spawn(["powershell", "-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", PICKER], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+  } catch (error) {
+    return { error: `could not open the folder dialog: ${error}` };
+  }
+
+  const picked = (await new Response(proc.stdout as ReadableStream<Uint8Array>).text()).trim().replace(/^"|"$/g, "");
+  await proc.exited;
+
+  if (!picked) return { ok: false, cancelled: true };
+  if (!existsSync(picked)) return { error: `that folder is not there: ${picked}` };
+  const exe = gameExeIn(picked);
+  if (!exe)
+    return { error: `${picked} has no ${GAME_EXE} and no single executable to use instead. Pick the folder that holds the game.` };
+
+  saveSettings({ gameDir: picked });
+  return { ok: true, gameDir: picked, game: exe };
+}
+
+function setMemoryStack(on: unknown) {
+  if (typeof on !== "boolean") return { error: "expected true or false" };
+  saveSettings({ memoryStack: on });
+  return { ok: true, memoryStack: on };
+}
+
 async function route(req: Request, url: URL) {
   if (url.pathname === "/api/state") return json(await snapshot());
+  if (url.pathname === "/api/game-dir") return json(await pickGameDir());
+  if (url.pathname === "/api/memory-stack") return json(setMemoryStack((await body(req)).on));
   if (url.pathname === "/api/play") return json(startRun(String((await body(req)).mode ?? "")));
   if (url.pathname === "/api/stop") return json(stop());
   if (url.pathname === "/api/prebuild") return json(startPrebuild());

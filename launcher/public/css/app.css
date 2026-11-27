@@ -894,6 +894,11 @@ body.menu-open .runline {
   padding: 0 56px;
 }
 
+.cards.is-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 26px;
+}
+
 .card {
   border: 1px solid var(--line);
   border-radius: 12px;

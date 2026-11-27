@@ -32,6 +32,12 @@ const el = {
   wsLogName: $("#ws-log-name"),
   cmdList: $("#cmd-list"),
   paths: $("#paths"),
+  gameDir: $("#game-dir"),
+  gameExe: $("#game-exe"),
+  gameNote: $("#game-note"),
+  pickGame: $("#pick-game-dir"),
+  memoryNote: $("#memory-note"),
+  memoryToggle: $("#memory-toggle"),
 };
 
 let mode = localStorage.getItem("run-mode") === "normal" ? "normal" : "optimized";
@@ -195,6 +201,8 @@ function showRunline() {
   if (!data) return;
   if (data.running) {
     setRunline(`Running · ${mmss(Date.now() - data.startedAt)} · ${data.runningMode}`, "is-running");
+  } else if (!data.checks.game) {
+    setRunline("Game folder not set — Settings → Choose folder…", "is-error");
   } else if (data.last) {
     const ok = data.last.exit === 0;
     setRunline(`Last run exited ${ok ? "cleanly" : `with code ${data.last.exit}`} · ${data.last.mode}`, ok ? "" : "is-error");
@@ -226,6 +234,13 @@ function render() {
   el.wsSize.textContent = `${data.cache.human} on disk`;
   el.wsDir.textContent = data.cache.dir;
   el.wsBuild.textContent = data.paths.build;
+
+  el.gameDir.textContent = data.paths.gameDir;
+  el.gameExe.textContent = data.checks.game ? data.paths.game : `${data.paths.game} — not found`;
+  el.memoryToggle.textContent = data.memoryStack ? "Turn off" : "Turn on";
+  el.memoryNote.textContent = data.memoryStack
+    ? "On: Play passes -MemoryStack, and the runtime turns its 15 memory switches on for that run."
+    : "Off: Play runs the runtime as it shipped, every memory switch at its default.";
 
   showRunline();
 
@@ -382,6 +397,27 @@ el.prebuild.addEventListener("click", async () => {
   }
   el.wsConsole.classList.add("is-open");
   $(".console-more", el.wsConsole).textContent = "collapse";
+  poll();
+});
+
+el.pickGame.addEventListener("click", async () => {
+  el.pickGame.disabled = true;
+  el.pickGame.textContent = "waiting for the folder dialog…";
+  el.gameNote.textContent = "";
+  const res = await api("/api/game-dir", {});
+  el.pickGame.disabled = false;
+  el.pickGame.textContent = "Choose folder…";
+  if (res.error) el.gameNote.textContent = res.error;
+  else if (res.cancelled) el.gameNote.textContent = "Nothing was picked; the folder is unchanged.";
+  else el.gameNote.textContent = "Saved. Play uses it from now on.";
+  poll();
+});
+
+el.memoryToggle.addEventListener("click", async () => {
+  el.memoryToggle.disabled = true;
+  const res = await api("/api/memory-stack", { on: !data?.memoryStack });
+  el.memoryToggle.disabled = false;
+  if (res.error) el.memoryNote.textContent = res.error;
   poll();
 });
 

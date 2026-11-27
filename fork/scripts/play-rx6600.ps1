@@ -45,6 +45,10 @@
 #               so that `target\diag\victory.exe warm --used` can make them all
 #               ahead of the next run and no frame waits for one
 # -Build        target\diag (the default) or target\release
+# -MemoryStack  turn on the memory stack (skornuta/victory-memory-stack): 15
+#               switches that cut VRAM and private commit and change nothing
+#               that is drawn. Each is OFF in the runtime; without this flag
+#               the run is exactly the run it was before the stack existed.
 # -More         other settings: -More @{VICTORY_AMBIENT='2'}
 # Run it from a normal window, not as administrator: the driver then keeps its
 # shader cache elsewhere.
@@ -115,6 +119,7 @@ param(
     [string]$WindowsBarMB = 'auto',
     [int]$PipelineWaitMS = 24,
     [ValidateSet('diag', 'release')][string]$Build = 'diag',
+    [switch]$MemoryStack,
     [hashtable]$More = @{}
 )
 $settings = @{
@@ -237,6 +242,25 @@ if ($DumpTargets) { $settings.VICTORY_DUMP_TARGETS = '1' }
 # hour and at night is nearly nothing; the floor fills the shadow.
 if ($AmbientFloor -gt 0) { $settings.VICTORY_AMBIENT_FLOOR = "$AmbientFloor" }
 if ($AmbientMost -gt 0) { $settings.VICTORY_AMBIENT_MOST = "$AmbientMost" }
+# The memory stack: the switches its play.ps1 sets, all of them off in the
+# runtime itself. One flag here, and none of them is set without it.
+if ($MemoryStack) {
+    $settings.VICTORY_GPU_DETILE = '1'
+    $settings.VICTORY_GPU_DETILE_VERIFY = '0'
+    $settings.VICTORY_GPU_DETILE_OUT_MB = '512'
+    $settings.VICTORY_GPU_DETILE_RAW_MB = '512'
+    $settings.VICTORY_GPU_DETILE_TRIM = '1'
+    $settings.VICTORY_SLOT_EVICT = '1'
+    $settings.VICTORY_SLOT_EVICT_PERCENT = '60'
+    $settings.VICTORY_SLOT_EVICT_LOW_PERCENT = '50'
+    $settings.VICTORY_BINDLESS_FEEDBACK = '1'
+    $settings.VICTORY_ALLOCATOR_TRIM = '1'
+    $settings.VICTORY_PRELUDE_POOL = '1'
+    $settings.VICTORY_STAGE_POOL_MB = '64'
+    $settings.VICTORY_CARD_WINDOW_UPLOAD_MB = '256'
+    $settings.VICTORY_BUDGET_PACK = '1'
+    $settings.VICTORY_COMPARE_PIECES = '1'
+}
 foreach ($k in $More.Keys) { $settings[$k] = $More[$k] }
 foreach ($kv in ($Set -split ';')) {
     if ($kv -and $kv.Contains('=')) {
@@ -266,12 +290,13 @@ $console = if ($seriesS) { @('--console', 'series-s') } else { @() }
 # Say which profile this run is, and what it is missing: the measured profile
 # depends on the FidelityFX folder for the upscale and for the generated frame.
 $fgOn = ($settings.VICTORY_FRAMEGEN -eq '1')
-Write-Host ("profile: {0} | FSR: {1} | frame generation: {2} | card buffers: {3} | windows in BAR: {7} | relay {4}, inplace {5}, ambient {6}" -f `
+Write-Host ("profile: {0} | FSR: {1} | frame generation: {2} | card buffers: {3} | windows in BAR: {7} | relay {4}, inplace {5}, ambient {6} | memory stack: {8}" -f `
     $(if ($seriesS) { 'Series S' } else { 'Series X' }), `
     $(if ($FidelityFxDir) { 'on' } else { 'OFF' }), `
     $(if ($fgOn) { 'on' } else { 'off' }), `
     $(if ($CardBuffers -eq 0) { 'off' } elseif ($CardBuffersMB -gt 0) { "$CardBuffersMB MB" } else { 'auto' }), `
-    $Relay, $Inplace, $settings.VICTORY_AMBIENT, $(if ($settings.VICTORY_WINDOWS_BAR_MB) { $settings.VICTORY_WINDOWS_BAR_MB } else { 'off' }))
+    $Relay, $Inplace, $settings.VICTORY_AMBIENT, $(if ($settings.VICTORY_WINDOWS_BAR_MB) { $settings.VICTORY_WINDOWS_BAR_MB } else { 'off' }), `
+    $(if ($MemoryStack) { 'on' } else { 'off' }))
 if (-not $FidelityFxDir) {
     Write-Host 'warning: no FidelityFX folder. Series S has no upscaler to answer it and draws a black world,' -ForegroundColor Yellow
     Write-Host '         so this run falls back to Series X and is NOT the profile the numbers were measured with.' -ForegroundColor Yellow

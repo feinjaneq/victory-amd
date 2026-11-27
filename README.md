@@ -8,9 +8,11 @@ page served by Bun on `127.0.0.1`.
 ## Quick start
 
 1. Double-click **`start-launcher.cmd`**.
-2. Go to the **Workshop** tab and press **Build runtime** (first time only; it
+2. Go to **Settings** and press **Choose folder…** to pick the folder your copy
+   of the game is in. Skip this when the launcher already finds it.
+3. Go to the **Workshop** tab and press **Build runtime** (first time only; it
    takes a while).
-3. Back on **Games**, press **Play**.
+4. Back on **Games**, press **Play**.
 
 That is it. You do not need to create `_gl79`, copy any folder, or edit any
 config: on startup the launcher copies the runtime source from `fork/` into
@@ -32,6 +34,16 @@ The arrow next to **Play** picks one:
 
 Tuned for a Radeon RX 6600 8 GB; other cards run, just not as documented here.
 
+## Memory stack
+
+**Settings → Memory stack** turns on the switches from
+[`memory-stack/`](memory-stack/MEMORY_STACK.md) for a run. Each one is **off in the
+runtime itself**, so with the toggle off nothing about the run changes. Three are
+ported into this fork — allocator trim, prelude pool, budget pack — and
+[`memory-stack/PORTED.md`](memory-stack/PORTED.md) says what landed, what did not and
+why. None of it has been measured on this card: run it once with the toggle off and
+once on and read **Card memory** on the Games tab.
+
 ## The tabs
 
 - **Games** — Play, the mode picker, live frame rate / frame time / card
@@ -39,8 +51,9 @@ Tuned for a Radeon RX 6600 8 GB; other cards run, just not as documented here.
 - **Workshop** — **Build runtime** (compiles `victory.exe`), **Prebuild
   shaders** (fills the shader cache so a run does not start by compiling),
   cache size, and the compiler log.
-- **Settings** — the two exact command lines Play runs, and every path the
-  launcher uses with a dot for whether it was found.
+- **Settings** — the two exact command lines Play runs (with `-MemoryStack` when
+  the toggle is on), every path the launcher uses with a dot for whether it was
+  found, **Choose folder…** for the game folder, and the memory stack toggle.
 
 **Stop** ends the run and everything it started. **Quit** (bottom left) closes
 the window and the server. Closing the window alone is enough too: two minutes
@@ -51,7 +64,7 @@ later the server exits by itself.
 | Message | Fix |
 | --- | --- |
 | `missing build` | Press **Workshop → Build runtime**. If you built in a terminal and it landed in `target\debug`, that was a plain `cargo build` — Play needs `--profile diag`. |
-| `missing game` | The game path in `GAME_DIR` (top of `launcher/server.ts`) does not point at your copy. |
+| `missing game` | The game folder is not the right one. Press **Settings → Choose folder…** and pick the folder that has the game executable. |
 | `missing FidelityFX` | Optimized mode needs `ffx\Kits\FidelityFX\signedbin`. Use Normal mode, or restore that folder. |
 | World is black in Optimized | Same cause: without the upscaler the Series S profile has nothing to answer it. Use Normal. |
 | Message box about `bun.exe` | Bun is not installed and not in the Freebuff folder. Install Bun. |
@@ -90,20 +103,22 @@ while a run is going, no run while a build is going.
 
 ## Where the paths are
 
-Everything is in one object at the top of `launcher\server.ts`: `GAME_DIR` (your
-game folder) and, in `P`, the script, the build, the config, `ffx/`, the shader
-cache and the logs. Change them there and reopen the launcher; the Settings tab
-shows the same values so you can see whether each one resolves.
+The game folder is whatever **Settings → Choose folder…** last saved, in
+`gl79-data/settings.json`; until something is saved the launcher uses the folder it
+was written for. The rest is one object at the top of `launcher\server.ts` (the script,
+the build, the config, `ffx/`, the shader cache, the logs). The Settings tab shows the
+same values with a dot for whether each one resolves.
 
 ## What is in this folder
 
 ```
 start-launcher.cmd      entry point; finds bun, starts the server hidden
-launcher/               the server (server.ts) and the window (public/)
+launcher/               the server (server.ts), the folder picker, the window (public/)
 _gl79/                  the runtime source (not in git; copied from fork/)
 fork/                   snapshot of the runtime source
+memory-stack/           the memory stack: patches, its docs, and PORTED.md
 attic/                  patches from experiments that were removed
-gl79-data/              shader cache and run logs (not backed up)
+gl79-data/              shader cache, run logs and settings.json (not backed up)
 ffx/                    FidelityFX binaries (not backed up)
 ```
 

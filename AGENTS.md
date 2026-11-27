@@ -11,9 +11,11 @@ fork's own 8 GB script in one of two modes, both in English:
 
 ```
 start-launcher.cmd          entry point; starts launcher/server.ts with bun
-launcher/server.ts          Bun server: state, play, stop, prebuild, logs
+launcher/server.ts          Bun server: state, play, stop, prebuild, build, logs
+launcher/pick-folder.ps1    the native folder dialog behind Settings
 launcher/public/            the window (HTML/CSS/JS, hero art)
 gl79-data/launcher/         run and prebuild logs, one file per run
+memory-stack/               skornuta/victory-memory-stack, and PORTED.md
 fork/                       snapshot of the fork's source at the build commit
 attic/                      patches of work that lived in the removed forks
 ```
@@ -29,11 +31,22 @@ if that folder has no `Cargo.toml`, and copies `victory.example.toml` to
 Build runtime` runs `cargo build --locked --profile diag -p victory --features
 diagnostics` in `_gl79/`. Do not turn those back into manual README steps.
 
-Paths the launcher uses stay outside this repository:
-the dumped game folder `C:\Users\Janeq\Downloads\GTA6.Xbox.v1.0.2.1-CYBERLEEK\`
-(its executable is `game_scarlett_master.exe`), `_gl79/target/diag/victory.exe`,
-`ffx/Kits/FidelityFX/signedbin`. The UI calls the title "Retail Game" and never
-uses its real name.
+The game folder is chosen in the window: Settings → **Choose folder…** runs
+`launcher/pick-folder.ps1`, the folder is saved in `gl79-data/settings.json` and
+passed as `VICTORY_GAME_DIR`. Until something is saved, the launcher uses
+`C:\Users\Janeq\Downloads\GTA6.Xbox.v1.0.2.1-CYBERLEEK\` (executable
+`game_scarlett_master.exe`). Do not put a game path back into `server.ts` and do not
+turn the button into a README step.
+
+The memory stack lives in `memory-stack/` (patches + the author's docs + `PORTED.md`).
+Its switches stay off in the runtime; Settings → Memory stack makes Play pass
+`-MemoryStack`, which sets them in `scripts/play-rx6600.ps1`. Only allocator trim,
+prelude pool and budget pack are ported into `host.rs` — read `PORTED.md` before adding
+another group, and keep every group behind its switch.
+
+Other paths stay outside this repository: `_gl79/target/diag/victory.exe` and
+`ffx/Kits/FidelityFX/signedbin`. The UI calls the title "Retail Game" and never uses
+its real name.
 
 ## After every build
 
