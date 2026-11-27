@@ -1,5 +1,5 @@
 @echo off
-rem Double-click this: opens the launcher window (GTA VI, gleaf-6 fork).
+rem Double-click this: opens the launcher window (retail game, gleaf-6 fork).
 rem It starts a local page that plays the fork's own 8 GB script, either as
 rem Optimized (Series S, 720p, FSR + frame generation) or Normal (Series X).
 

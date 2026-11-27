@@ -1,4 +1,4 @@
-// GTA VI launcher for the gleaf-6 VIctory fork, tuned for a Radeon RX 6600 8 GB.
+// Retail Game launcher for the gleaf-6 VIctory fork, tuned for a Radeon RX 6600 8 GB.
 //
 // A loopback-only server: it serves the launcher UI and starts the fork's own
 // measured 8 GB script, `_gl79/scripts/play-rx7600.ps1`. It configures nothing

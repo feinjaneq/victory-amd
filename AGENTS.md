@@ -1,4 +1,4 @@
-# GTA VI launcher (Radeon RX 6600 8 GB)
+# Retail Game launcher (Radeon RX 6600 8 GB)
 
 A local launcher window for the gleaf-6 VIctory fork, running on this machine's
 RX 6600 / Ryzen 5 5600 / 32 GB. It serves a page on 127.0.0.1 and runs the
@@ -24,8 +24,10 @@ browser profile. The live checkout in `_gl79/` is the fork's own git clone with
 its own remote; `fork/` is the plain snapshot kept here as a backup.
 
 Paths the launcher uses stay outside this repository:
-`C:\Users\Janeq\Downloads\GTA6.Xbox.v1.0.2.1-CYBERLEEK\game_scarlett_master.exe`,
-`_gl79/target/diag/victory.exe`, `ffx/Kits/FidelityFX/signedbin`.
+the dumped game folder `C:\Users\Janeq\Downloads\GTA6.Xbox.v1.0.2.1-CYBERLEEK\`
+(its executable is `game_scarlett_master.exe`), `_gl79/target/diag/victory.exe`,
+`ffx/Kits/FidelityFX/signedbin`. The UI calls the title "Retail Game" and never
+uses its real name.
 
 ## After every build
 
