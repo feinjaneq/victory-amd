@@ -23,6 +23,10 @@ the internet. Close the window and the local server exits on its own.
 - [Bun](https://bun.sh) on `PATH`. If you do not have it, `start-launcher.cmd`
   looks for the copy bundled with Freebuff Desktop and shows a message box if it
   finds nothing.
+- The runtime source in `_gl79\` (see **Get the runtime source** below; it is
+  not stored in this repository).
+- Rust 1.98.1 and the Visual Studio C++ build tools with a Windows SDK — only
+  needed to build the runtime, not to run the launcher.
 - The runtime build: `_gl79\target\diag\victory.exe` (see **Build** below).
 - Your own copy of the game, at the path the launcher is configured to use
   (see **Where the paths are** below).
@@ -96,10 +100,59 @@ Double-click **`start-launcher.cmd`**.
 Build the runtime, not the launcher — the launcher is plain HTML/CSS/JS served
 by Bun and needs no build step.
 
+### Get the runtime source (first time only)
+
+`_gl79\` is **not** part of this repository: it is the fork's own git clone with
+its own remote, so it is ignored here (a nested repo would only leave a pointer
+and lose its history). There are two ways to get it:
+
+- **From the snapshot that is in the repository.** `fork\` holds the fork's
+  source at the build commit, so copying it into `_gl79\` gives you the exact
+  same tree:
+
+  ```powershell
+  Copy-Item -Recurse fork _gl79
+  ```
+
+- **From the fork's repository**, if you have access to it:
+
+  ```powershell
+  git clone <fork url> _gl79
+  ```
+
+Either way, `_gl79\` must end up with `Cargo.toml`, `crates\`, `apps\` and
+`scripts\play-rx6600.ps1` at its top level — that is what the launcher checks
+for.
+
+### Set the game folder (first time only)
+
+The runtime reads `_gl79\victory.toml`. The launcher points it there explicitly
+(`VICTORY_CONFIG`), and the runtime stops with *"VICTORY_CONFIG points at …
+which does not exist"* if the file is missing, so create it once:
+
+```powershell
+Copy-Item _gl79\victory.example.toml _gl79\victory.toml
+```
+
+Then set `game_dir` in `_gl79\victory.toml` to the folder that holds your copy
+of the game. That file is deliberately git-ignored: it is yours, and it is not
+uploaded anywhere.
+
+### Build the runtime
+
 ```powershell
 cd _gl79
 cargo build --locked --profile diag -p victory --features diagnostics
 ```
+
+The first build is long: Rust compiles every crate from scratch, so expect tens
+of minutes and a lot of CPU fan noise. That is normal, and later builds only
+rebuild what changed. You need:
+
+- **Rust** — install from <https://rustup.rs>. `_gl79\rust-toolchain.toml` pins
+  the exact version (1.98.1) and rustup fetches it on the first `cargo build`.
+- **Visual Studio Build Tools** with *Desktop development with C++* and a
+  Windows SDK — the runtime links with MSVC, so `link.exe` must exist.
 
 That produces `_gl79\target\diag\victory.exe`, which is exactly what the
 launcher checks for before it lets you press Play. Build once, and rebuild only
@@ -144,6 +197,9 @@ Nothing outside this folder is written except the run's own data in
 | A message box about `bun.exe` | Bun is not on `PATH` and not in the Freebuff folder. Install Bun, or set `FREEBUFF_BUN` to `bun.exe`. |
 | Play says **missing script** | `_gl79\scripts\play-rx6600.ps1` is gone — re-clone the fork into `_gl79`. |
 | Play says **missing build** | Build the runtime (see **Build**). |
+| The runtime stops with *VICTORY_CONFIG points at … which does not exist* | `_gl79\victory.toml` was never created — copy `victory.example.toml` (see **Set the game folder**). |
+| `cargo` is not recognised | Rust is not installed, or `%USERPROFILE%\.cargo\bin` is not on `PATH`; open a new terminal after installing. |
+| `link.exe not found` / `LINK : fatal error LNK1181` | The MSVC build tools or the Windows SDK are missing (see **Build**). |
 | Play says **missing FidelityFX** | Optimized mode needs `ffx\Kits\FidelityFX\signedbin\amd_fidelityfx_upscaler_dx12.dll`. Use Normal mode, or restore that folder. |
 | The world comes out black in Optimized | Same cause: without the upscaler the Series S profile has nothing to answer it. Normal mode renders on its own. |
 | The window opens on a strange port | Another program holds `7788`; the server walks up to `7799`. |
@@ -155,7 +211,8 @@ Nothing outside this folder is written except the run's own data in
 start-launcher.cmd      entry point; finds bun, starts the server hidden
 launcher/server.ts      the whole backend: state, play, stop, prebuild, logs
 launcher/public/        the window (HTML, CSS, JS, hero art)
-_gl79/                  the VIctory runtime checkout (its own git clone)
+_gl79/                  the runtime source (not in git; copy `fork/` into it
+                        if it is missing)
 _gl79/scripts/          play-rx6600.ps1 and friends
 fork/                   plain snapshot of the runtime source, kept as a backup
 attic/                  patches from experiments that were removed
