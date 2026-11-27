@@ -18,10 +18,17 @@ const HERE = import.meta.dir; // <root>/launcher
 const ROOT = join(HERE, "..");
 const GAME_DIR = "C:\\Users\\Janeq\\Downloads\\GTA6.Xbox.v1.0.2.1-CYBERLEEK";
 
+const REPO = join(ROOT, "_gl79");
+const buildExe = (profile: string) => join(REPO, "target", profile, "victory.exe");
+// The fork's script only knows target\diag and target\release, so use whichever of
+// those was actually built instead of insisting on diag.
+const profile = ["diag", "release"].find((p) => existsSync(buildExe(p))) ?? "diag";
+
 const P = {
-  repo: join(ROOT, "_gl79"),
+  repo: REPO,
+  profile,
   script: join(ROOT, "_gl79", "scripts", "play-rx6600.ps1"),
-  build: join(ROOT, "_gl79", "target", "diag", "victory.exe"),
+  build: buildExe(profile),
   config: join(ROOT, "_gl79", "victory.toml"),
   ffx: join(ROOT, "ffx", "Kits", "FidelityFX", "signedbin"),
   data: join(ROOT, "gl79-data"),
@@ -39,14 +46,14 @@ const MODES: Mode[] = [
     name: "Optimized",
     badge: "Recommended",
     detail: "Series S · 1280×720 · FSR 4.1.2 + frame generation",
-    args: ["-FidelityFxDir", P.ffx, "-SeriesS", "-Resolution", "1280x720", "-Stats"],
+    args: ["-Build", P.profile, "-FidelityFxDir", P.ffx, "-SeriesS", "-Resolution", "1280x720", "-Stats"],
   },
   {
     id: "normal",
     name: "Normal",
     badge: "Unoptimized",
     detail: "Series X · 1920×1080 · no upscaler, no generated frames",
-    args: ["-SeriesX", "-Resolution", "1920x1080", "-Stats"],
+    args: ["-Build", P.profile, "-SeriesX", "-Resolution", "1920x1080", "-Stats"],
   },
 ];
 
@@ -141,19 +148,29 @@ function start(kind: Job["kind"], argv: string[], logTag: string, mode?: Mode) {
   return { ok: true };
 }
 
+// Turns "no build" into something actionable: where it looked, and what was there instead.
+function buildHint() {
+  const debug = buildExe("debug");
+  if (existsSync(debug))
+    return ` - found ${debug}: a plain "cargo build" makes a debug build, which is not what Play runs. Rebuild with "--profile diag" (see README, Build the runtime).`;
+  if (!existsSync(join(P.repo, "Cargo.toml")))
+    return ` - ${P.repo} has no Cargo.toml: the runtime source is missing. Copy fork/ into _gl79 (see README, Get the runtime source).`;
+  return ` - nothing built into ${join(P.repo, "target")} yet: run the cargo build with "--profile diag".`;
+}
+
 function startRun(modeId: string) {
   const mode = MODES.find((m) => m.id === modeId);
   if (!mode) return { error: "unknown mode" };
   if (!existsSync(P.script)) return { error: `missing script: ${P.script}` };
-  if (!existsSync(P.build)) return { error: `missing build: ${P.build}` };
-  if (!existsSync(P.game)) return { error: `missing dump: ${P.game}` };
+  if (!existsSync(P.build)) return { error: `missing build: ${P.build}${buildHint()}` };
+  if (!existsSync(P.game)) return { error: `missing game: ${P.game}` };
   if (mode.args.includes("-FidelityFxDir") && !existsSync(join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")))
     return { error: `missing FidelityFX: ${join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")}` };
   return start("run", runArgv(mode), `run-${mode.id}`, mode);
 }
 
 function startPrebuild() {
-  if (!existsSync(P.build)) return { error: `missing build: ${P.build}` };
+  if (!existsSync(P.build)) return { error: `missing build: ${P.build}${buildHint()}` };
   return start("prebuild", PREBUILD_ARGV, "prebuild");
 }
 
@@ -266,6 +283,7 @@ async function snapshot() {
     paths: {
       game: P.game,
       build: P.build,
+      profile: P.profile,
       script: P.script,
       ffx: P.ffx,
       config: P.config,

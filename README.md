@@ -159,8 +159,10 @@ launcher checks for before it lets you press Play. Build once, and rebuild only
 when the runtime source changes. While a run is in progress the launcher refuses
 to start a build job at the same time (one job at a time, ever).
 
-If you rebuild into `target\release` instead, change `-Build diag` to
-`-Build release` in the mode's arguments, or run the script by hand:
+A `--profile release` build is picked up automatically: the launcher uses
+`target\diag` if it exists, otherwise `target\release`. A plain `cargo build`
+lands in `target\debug` and is not used — debug builds are for debugging, not
+for playing. To run the script by hand against another build:
 
 ```powershell
 cd _gl79
@@ -196,7 +198,7 @@ Nothing outside this folder is written except the run's own data in
 | --- | --- |
 | A message box about `bun.exe` | Bun is not on `PATH` and not in the Freebuff folder. Install Bun, or set `FREEBUFF_BUN` to `bun.exe`. |
 | Play says **missing script** | `_gl79\scripts\play-rx6600.ps1` is gone — re-clone the fork into `_gl79`. |
-| Play says **missing build** | Build the runtime (see **Build**). |
+| Play says **missing build** | Nothing was built at `_gl79\target\diag\victory.exe`. If the build worked, it probably landed in `target\debug`: a plain `cargo build` is a debug build, and Play does not use it. Run the build again with `--profile diag`. The message names the file it looked for and the folder it found instead. A `--profile release` build is picked up automatically. |
 | The runtime stops with *VICTORY_CONFIG points at … which does not exist* | `_gl79\victory.toml` was never created — copy `victory.example.toml` (see **Set the game folder**). |
 | `cargo` is not recognised | Rust is not installed, or `%USERPROFILE%\.cargo\bin` is not on `PATH`; open a new terminal after installing. |
 | `link.exe not found` / `LINK : fatal error LNK1181` | The MSVC build tools or the Windows SDK are missing (see **Build**). |

@@ -282,7 +282,7 @@ function drawSettings() {
   }
 
   const rows = [
-    ["dump", data.paths.game, data.checks.game],
+    ["game", data.paths.game, data.checks.game],
     ["build", data.paths.build, data.checks.build],
     ["script", data.paths.script, data.checks.script],
     ["fidelityfx", data.paths.ffx, data.checks.ffx],
