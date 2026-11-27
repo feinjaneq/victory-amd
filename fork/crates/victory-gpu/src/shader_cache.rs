@@ -85,6 +85,10 @@ fn build() -> [u8; 32] {
         }
         // And which clean-up passes ran over the translated code.
         bytes.extend_from_slice(&victory_shader::emit::shader_opt().to_le_bytes());
+        // Every other switch the translator reads: the list above names only
+        // some, so a run with one of the others changed would be served
+        // translations made under the old value.
+        bytes.extend_from_slice(&victory_shader::emit::switch_values());
         bytes
     });
     let mut hash = blake3::Hasher::new();
