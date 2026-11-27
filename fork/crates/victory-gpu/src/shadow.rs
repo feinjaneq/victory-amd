@@ -167,7 +167,7 @@ pub(crate) fn cards() -> bool {
 }
 
 /// The most bytes of card copies when `VICTORY_CARD_BUFFERS_MB=auto` (what
-/// `scripts\play-rx7600.ps1` passes by default), from the budget in bytes:
+/// `scripts\play-rx6600.ps1` passes by default), from the budget in bytes:
 ///
 /// - `<= 12 GiB` (the 8 GB class, whose WDDM budget is below 12 GiB): 1 GiB,
 ///   the measured best here (512 MiB made the frame 177.8 ms, 256 MiB 246.8);

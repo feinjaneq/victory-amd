@@ -4,7 +4,7 @@ A local launcher window for the gleaf-6 VIctory fork, running on this machine's
 RX 6600 / Ryzen 5 5600 / 32 GB. It serves a page on 127.0.0.1 and runs the
 fork's own 8 GB script in one of two modes, both in English:
 
-- **Optimized** — `_gl79/scripts/play-rx7600.ps1 -SeriesS -Resolution 1280x720
+- **Optimized** — `_gl79/scripts/play-rx6600.ps1 -SeriesS -Resolution 1280x720
   -FidelityFxDir ffx\Kits\FidelityFX\signedbin -Stats` (FSR + frame generation)
 - **Normal** — the same script with `-SeriesX -Resolution 1920x1080 -Stats`
   (no upscaler, no generated frames)

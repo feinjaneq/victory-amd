@@ -49,10 +49,10 @@ num port nativo do jogo seria outro mundo.
 ```powershell
 cargo build --locked --profile diag -p victory --features diagnostics
 $env:VICTORY_FIDELITYFX_SDK = '<SDK>\Kits\FidelityFX\signedbin'
-scripts\play-rx7600.ps1 -Exe <sua cópia>\game_scarlett_master.exe
+scripts\play-rx6600.ps1 -Exe <sua cópia>\game_scarlett_master.exe
 ```
 
-`scripts\play-rx7600.ps1` é o perfil com que todos os números acima foram
+`scripts\play-rx6600.ps1` é o perfil com que todos os números acima foram
 medidos. Ele recebe o executável do jogo (`-Exe`) e a pasta do FidelityFX
 (`-FidelityFxDir`, ou a variável de ambiente `VICTORY_FIDELITYFX_SDK`). Com essa
 pasta a execução é **Series S**, o upscale do 720p do console é respondido pelo
@@ -102,7 +102,7 @@ imagem aparece a cerca de **duas vezes** a taxa renderizada (≈6–8 renderizad
   interpolar tão pouca informação, não é bug.
 - Precisa da pasta do upscaler (o upscale é quem o alimenta).
 
-## Referência de comandos (`scripts\play-rx7600.ps1`)
+## Referência de comandos (`scripts\play-rx6600.ps1`)
 
 | switch | o que faz |
 |---|---|

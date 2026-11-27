@@ -1,5 +1,5 @@
 # Starts the title with settings for a card of 8 GB and a PC of 32 GB of RAM
-# (the measured machine: a Radeon RX 7600 and a Ryzen 7 5700X).
+# (the measured machine: a Radeon RX 6600 and a Ryzen 5 5600).
 # scripts\play.ps1 is the fork's own set; this one keeps all of it and adds
 # what this class of hardware needs:
 #   - the display reported to the title is the one the PC has (720p unless
@@ -19,7 +19,7 @@
 #     Series S has no upscaler to answer it: the world comes black, so the
 #     run falls back to the bigger console (Series X), which renders alone.
 #     -SeriesS and -SeriesX force either one.
-#   scripts\play-rx7600.ps1 -Exe <path of your own copy's executable>
+#   scripts\play-rx6600.ps1 -Exe <path of your own copy's executable>
 #       -FidelityFxDir <SDK>\Kits\FidelityFX\signedbin
 # -Resolution   1280x720 (the default), 1600x900 or 1920x1080
 # -RayTracing   the title's own ray-traced indirect light: lit interiors,
@@ -277,7 +277,7 @@ if (-not $FidelityFxDir) {
     Write-Host '         so this run falls back to Series X and is NOT the profile the numbers were measured with.' -ForegroundColor Yellow
     Write-Host '         For the measured profile (Series S + FSR + frame generation):' -ForegroundColor Yellow
     Write-Host '           $env:VICTORY_FIDELITYFX_SDK = ''<SDK>\Kits\FidelityFX\signedbin''' -ForegroundColor Yellow
-    Write-Host '           scripts\play-rx7600.ps1 -Exe <path of your copy''s executable>' -ForegroundColor Yellow
+    Write-Host '           scripts\play-rx6600.ps1 -Exe <path of your copy''s executable>' -ForegroundColor Yellow
 }
 Push-Location (Join-Path $PSScriptRoot '..')   # victory.toml is looked for here
 try { & $victory run $Exe --execute @console } finally { Pop-Location }

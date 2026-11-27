@@ -39,7 +39,7 @@ or publisher.
 - page mappings as runs of pages, and the `codec-d/cool_fox` fork's six commits
   (deferred descriptor records, bindless refreshes scoped to their heap,
   textures sent ahead, residency and pool back-off);
-- `scripts\play-rx7600.ps1`: the profile these numbers were measured with
+- `scripts\play-rx6600.ps1`: the profile these numbers were measured with
   (Series S, the host FidelityFX upscaler and frame generation turned on by
   default when the SDK folder is given).
 
@@ -62,7 +62,7 @@ tools with a Windows SDK:
 
 ```powershell
 cargo build --locked --profile diag -p victory --features diagnostics
-scripts\play-rx7600.ps1 -Exe <path of your copy's executable>
+scripts\play-rx6600.ps1 -Exe <path of your copy's executable>
 ```
 
 ## Where it stands
@@ -149,10 +149,10 @@ cd VIctory-7900XTX
 copy victory.example.toml victory.toml      # then set your paths, outside this folder
 cargo build --locked --profile diag -p victory --features diagnostics
 $env:VICTORY_FIDELITYFX_SDK = '<SDK>\Kits\FidelityFX\signedbin'
-scripts\play-rx7600.ps1 -Exe <path of your copy's executable>
+scripts\play-rx6600.ps1 -Exe <path of your copy's executable>
 ```
 
-That `scripts\play-rx7600.ps1` line is the measured profile and needs the
+That `scripts\play-rx6600.ps1` line is the measured profile and needs the
 FidelityFX folder: with it, the script runs **Series S**, answers the console's
 720p upscale with the host **FidelityFX (FSR)** and puts a **generated frame**
 between the rendered ones, on top of the tuning it already sets (buffers kept
@@ -171,7 +171,7 @@ The executable may live outside the dump (renamed or not): `-TitleDir`
 added to:
 
 ```powershell
-scripts\play-rx7600.ps1 -Exe D:\game.exe -TitleDir D:\dump -FidelityFxDir D:\FidelityFX\signedbin
+scripts\play-rx6600.ps1 -Exe D:\game.exe -TitleDir D:\dump -FidelityFxDir D:\FidelityFX\signedbin
 ```
 
 The FidelityFX folder is the SDK's `Kits\FidelityFX\signedbin` (the DX12

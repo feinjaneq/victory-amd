@@ -1,7 +1,7 @@
 // Retail Game launcher for the gleaf-6 VIctory fork, tuned for a Radeon RX 6600 8 GB.
 //
 // A loopback-only server: it serves the launcher UI and starts the fork's own
-// measured 8 GB script, `_gl79/scripts/play-rx7600.ps1`. It configures nothing
+// measured 8 GB script, `_gl79/scripts/play-rx6600.ps1`. It configures nothing
 // itself; it runs a mode, streams the output to a log, and reports the numbers
 // the host prints.
 //
@@ -20,7 +20,7 @@ const GAME_DIR = "C:\\Users\\Janeq\\Downloads\\GTA6.Xbox.v1.0.2.1-CYBERLEEK";
 
 const P = {
   repo: join(ROOT, "_gl79"),
-  script: join(ROOT, "_gl79", "scripts", "play-rx7600.ps1"),
+  script: join(ROOT, "_gl79", "scripts", "play-rx6600.ps1"),
   build: join(ROOT, "_gl79", "target", "diag", "victory.exe"),
   config: join(ROOT, "_gl79", "victory.toml"),
   ffx: join(ROOT, "ffx", "Kits", "FidelityFX", "signedbin"),
@@ -83,7 +83,7 @@ function stamp() {
 function childEnv() {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
-  // play-rx7600.ps1 drops every VICTORY_* it does not keep, so only these stay.
+  // play-rx6600.ps1 drops every VICTORY_* it does not keep, so only these stay.
   env.VICTORY_CONFIG = P.config;
   env.VICTORY_CACHE_DIR = P.cache;
   env.VICTORY_DATA_DIR = P.data;

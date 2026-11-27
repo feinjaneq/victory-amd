@@ -1,4 +1,4 @@
-# Runs the title for a while under scripts\play-rx7600.ps1 and samples what
+# Runs the title for a while under scripts\play-rx6600.ps1 and samples what
 # it costs the machine, once a second, from outside the process (no effect on
 # the run): the PC's memory (private commit and working set of victory.exe),
 # the card's memory it holds (dedicated and shared, from the GPU performance
@@ -30,7 +30,7 @@ $csv = Join-Path $Out "$Name.csv"
 
 # The run, in a PowerShell of its own so that its environment stays its own.
 $q = { param($s) "'" + ("$s" -replace "'", "''") + "'" }
-$command = "& $(& $q (Join-Path $PSScriptRoot 'play-rx7600.ps1')) -Exe $(& $q $Exe)"
+$command = "& $(& $q (Join-Path $PSScriptRoot 'play-rx6600.ps1')) -Exe $(& $q $Exe)"
 if ($TitleDir) { $command += " -TitleDir $(& $q $TitleDir)" }
 $sets = @($Set) + $(if ($Keys) { "VICTORY_KEYS=$Keys" }) | Where-Object { $_ }
 if ($sets) { $command += " -Set $(& $q ($sets -join ';'))" }
