@@ -1,0 +1,388 @@
+diff --git a/README.md b/README.md
+index 77b17af..ac8fc11 100644
+--- a/README.md
++++ b/README.md
+@@ -345,6 +345,7 @@ cargo build --profile diag -p victory --features diagnostics   # target\diag\vic
+ | `VICTORY_D3D12_GBV=1` | with the above, GPU-based validation (bad descriptor use reported, not faulted; slow) |
+ | `VICTORY_D3D12_DRED=1` | on a GPU failure, the allocation hit and the commands in flight |
+ | `VICTORY_PIPELINE_WAIT_MS=24` | reduce the per-frame wait for background pipeline creation from the default of 500 ms. A draw can be omitted until its pipeline is ready |
++| `VICTORY_PIPELINE_FRAME_S=2` | how long one frame may wait while a world loads for its pipelines to be made (default 4 s; `VICTORY_PIPELINE_FRAME_COMPUTE_S` the compute ones, 12 s). Lower trades one long hitch for a few shorter ones; draws whose pipeline is not ready are dropped, as before |
+ | `VICTORY_SKIP_PIPELINES=<hash>,...` | omit draws and dispatches, including indirect ones, whose pipeline contains a listed 16-digit shader hash |
+ | `VICTORY_GPU_TIMING=1` | with the above, each list of a submission run and timed on its own; slow lists logged with their slowest commands |
+ | `VICTORY_LOG_SLOW_PIPELINES=1` | a slow submission's warning names the pipelines it ran (a hundred names each, and a world run makes one a frame) |
+diff --git a/crates/victory-gpu/src/descriptor/host.rs b/crates/victory-gpu/src/descriptor/host.rs
+index 4ffb724..5f0d4c2 100644
+--- a/crates/victory-gpu/src/descriptor/host.rs
++++ b/crates/victory-gpu/src/descriptor/host.rs
+@@ -933,7 +933,22 @@ impl HostHeap {
+     /// ([`TextureQueue::census`]).
+     pub(crate) fn texture_slots_due(&self, frame: u64, max: usize) -> (Vec<(u32, u64)>, [u64; 5]) {
+         let textures = self.textures.lock().unwrap_or_else(|e| e.into_inner());
+-        (if max == 0 { Vec::new() } else { textures.due(frame, max) }, textures.census(frame))
++        let due = if max == 0 { Vec::new() } else { textures.due(frame, max) };
++        // The census walks the whole queue (15,000-35,000 slots in run 4),
++        // and every pass of a frame asked for it again: kept for a few
++        // frames, as the frame line reads it once a frame.
++        static CENSUS: std::sync::Mutex<Option<(u64, [u64; 5])>> = std::sync::Mutex::new(None);
++        let mut kept = CENSUS.lock().unwrap_or_else(|e| e.into_inner());
++        let last = *kept;
++        let census = match last {
++            Some((at, census)) if frame < at + 4 => census,
++            _ => {
++                let census = textures.census(frame);
++                *kept = Some((frame, census));
++                census
++            }
++        };
++        (due, census)
+     }
+ 
+     /// The texture view of title slot `index` (as handed out with `write`)
+@@ -1054,9 +1069,13 @@ impl HostHeap {
+     /// `VICTORY_TEXTURE_SWEEP=0` turns it off, `count` only counts.
+     pub(crate) fn texture_sweep(&self, heap: &super::Heap, frame: u64) {
+         use std::sync::atomic::Ordering::Relaxed;
+-        /// Slots looked at at a time, and the least time between.
+-        const SLOTS: u32 = 1 << 15;
+-        const EVERY_MS: u64 = 100;
++        /// Slots looked at at a time, and the least time between. A part of
++        /// 32,768 every 100 ms ran in every pass of a frame that picks
++        /// textures by index, and each slot costs a read of its view: a
++        /// quarter of that, four times less often, still walks the heap in
++        /// about a second and a half (run 4's "making textures").
++        const SLOTS: u32 = 1 << 14;
++        const EVERY_MS: u64 = 250;
+         static MODE: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
+         let mode = *MODE.get_or_init(|| match std::env::var("VICTORY_TEXTURE_SWEEP").as_deref() {
+             Ok("0") => 0,
+@@ -1076,7 +1095,20 @@ impl HostHeap {
+         sweep.2 = now;
+         let (from, mut counts) = (sweep.0.min(self.count), sweep.1);
+         let to = from.saturating_add(SLOTS).min(self.count);
+-        self.sweep_part(from..to, |index| heap.handle(index), frame, mode == 2, &mut counts);
++        // The slots already in the queue are due anyway: skipped before
++        // their view is read (the queue held 15,000-35,000 slots in run 4).
++        let queued: std::collections::BTreeSet<u32> = {
++            let textures = self.textures.lock().unwrap_or_else(|e| e.into_inner());
++            textures.slots.keys().copied().collect()
++        };
++        self.sweep_part(
++            from..to,
++            |index| heap.handle(index),
++            frame,
++            mode == 2,
++            &mut counts,
++            &queued,
++        );
+         sweep.0 = to;
+         sweep.1 = counts;
+         if to >= self.count {
+@@ -1096,6 +1128,7 @@ impl HostHeap {
+         frame: u64,
+         put_back: bool,
+         counts: &mut [u64; 10],
++        queued: &std::collections::BTreeSet<u32>,
+     ) {
+         use std::sync::atomic::Ordering::Relaxed;
+         /// Put back per part, and only while the queue is shorter than
+@@ -1112,6 +1145,9 @@ impl HostHeap {
+             // of it is there: asked once per page.
+             let mut page = (u64::MAX, false);
+             for index in slots {
++                if queued.contains(&index) {
++                    continue;
++                }
+                 let Some(handle) = handle(index) else {
+                     break;
+                 };
+@@ -3031,10 +3067,12 @@ mod tests {
+             host.textures.lock().unwrap().remove(slot);
+         }
+         let mut counts = [0; 10];
+-        host.sweep_part(0..8, handle, 50, false, &mut counts);
++        // Nothing is in the queue: the sweep has to look at all of them.
++        let none = std::collections::BTreeSet::new();
++        host.sweep_part(0..8, handle, 50, false, &mut counts, &none);
+         assert_eq!(counts, [2, 0, 0, 0, 0, 0, 1, 1, 0, 0]);
+         assert_eq!(queued(), []);
+-        host.sweep_part(0..8, handle, 50, true, &mut counts);
++        host.sweep_part(0..8, handle, 50, true, &mut counts, &none);
+         assert_eq!(queued(), [1]);
+     }
+ 
+diff --git a/crates/victory-gpu/src/draw.rs b/crates/victory-gpu/src/draw.rs
+index 966488f..78c81a1 100644
+--- a/crates/victory-gpu/src/draw.rs
++++ b/crates/victory-gpu/src/draw.rs
+@@ -350,6 +350,15 @@ pub(crate) static HEAP_BUFFER_MICROS: AtomicU64 = AtomicU64::new(0);
+ /// (2026-11-25, run 1) and which of the three parts that is decides what
+ /// to make faster.
+ pub(crate) static HEAP_BUFFER_SPLIT: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
++/// Of the microseconds `heap_textures` took: the queue's upkeep (memory
++/// mapped under views, and the sweep), the looks again at uploaded
++/// textures, the queue scan (`due` and the census), making host textures,
++/// recording their uploads (with the staging buffer a first one makes),
++/// and the whole pass. The frame line's "making textures" covered all six;
++/// run 4 spent 760-3,009 ms a frame there, and which of them it is decides
++/// what to make faster. (Reading and detiling title memory is not among
++/// them: that is the frame line's `textures` part, 2.6-52 ms a frame.)
++pub(crate) static HEAP_TEXTURE_SPLIT: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+ /// Textures brought up to date for shaders that pick them by index
+ /// ([`State::heap_textures`]), the bytes of their memory, and the slots
+ /// still waiting.
+@@ -1519,9 +1528,12 @@ impl State {
+         const LONG: u64 = 2_000;
+         static FRAME: AtomicU64 = AtomicU64::new(u64::MAX);
+         static SPENT: AtomicU64 = AtomicU64::new(0);
++        /// The milliseconds this frame's passes over the queue took.
++        static SPENT_MS: AtomicU64 = AtomicU64::new(0);
+         let frame = crate::frame::current();
+         if FRAME.swap(frame, Ordering::Relaxed) != frame {
+             SPENT.store(0, Ordering::Relaxed);
++            SPENT_MS.store(0, Ordering::Relaxed);
+         }
+         // No more of them are made while the card has no room
+         // (`resource::room`): by what is alive now, not by what was ever
+@@ -1536,17 +1548,21 @@ impl State {
+             once!("textures picked by index: the card has no room for more; they wait");
+         }
+         let mut refused = 0;
++        let whole = std::time::Instant::now();
+         // Slots whose texture's memory the runtime mapped, unmapped or
+         // wrote since the last pass are due again.
+         host.texture_slots_remapped(frame);
+         host.texture_sweep(heap, frame);
++        let swept = std::time::Instant::now();
+         if heap_recheck() {
+             let [same, changed, waiting] = host.texture_slots_rechecked(frame);
+             HEAP_TEXTURES_RECHECKED[0].fetch_add(same, Ordering::Relaxed);
+             HEAP_TEXTURES_RECHECKED[1].fetch_add(changed, Ordering::Relaxed);
+             HEAP_TEXTURES_RECHECKED[2].store(waiting, Ordering::Relaxed);
+         }
++        let looked = std::time::Instant::now();
+         let (due, census) = host.texture_slots_due(frame, 4096);
++        let scanned = std::time::Instant::now();
+         HEAP_TEXTURES_WAITING.store(census[0], Ordering::Relaxed);
+         for (count, now) in HEAP_TEXTURES_QUEUE.iter().zip(census) {
+             count.store(now, Ordering::Relaxed);
+@@ -1578,14 +1594,31 @@ impl State {
+         // The rest waits for the next frames, as it does past the bytes.
+         const SPAN: std::time::Duration = std::time::Duration::from_millis(250);
+         const SPAN_CATCHING_UP: std::time::Duration = std::time::Duration::from_millis(1500);
+-        let (per_frame, span) = if census[0] > LONG && catching_up(std::time::Duration::ZERO) {
++        // Nothing is brought in at more than the usual pace while the
++        // card's memory for these copies is nearly all used: on an 8 GB
++        // card the budget is full by the time a world loads, and staging
++        // 512 MB a frame there evicts what it just uploaded (run 4: 73
++        // passes refused for lack of room, 6.2-6.5 GB of the PC's memory
++        // shared with the card).
++        let (per_frame, span) = if census[0] > LONG
++            && !crate::resource::tight()
++            && catching_up(std::time::Duration::ZERO)
++        {
+             (PER_FRAME_CATCHING_UP, SPAN_CATCHING_UP)
+         } else {
+             (PER_FRAME, SPAN)
+         };
++        let span_ms = span.as_millis() as u64;
+         let began = std::time::Instant::now();
++        let (mut created, mut uploaded) = (std::time::Duration::ZERO, std::time::Duration::ZERO);
+         for (index, write) in due {
+-            if SPENT.load(Ordering::Relaxed) >= per_frame || began.elapsed() > span {
++            // The frame's time, not this pass's: a frame records a pass for
++            // each of its lists that picks textures by index, and two of
++            // them spent 1,500 ms each in one frame of run 4 (3,009 ms
++            // "making textures").
++            if SPENT.load(Ordering::Relaxed) >= per_frame
++                || SPENT_MS.load(Ordering::Relaxed) >= span_ms
++            {
+                 break;
+             }
+             // A placed texture whose memory is not mapped (not streamed in
+@@ -1645,7 +1678,9 @@ impl State {
+                 }
+                 continue;
+             }
++            let making = std::time::Instant::now();
+             let view = heap.handle(index).and_then(|handle| host.mirror(index, handle, true));
++            created += making.elapsed();
+             let placed = view.as_ref().and_then(crate::descriptor::host::placed_texture);
+             let resource = match placed.as_ref().or(view.as_ref()) {
+                 Some(&View::Shader(resource, _)) => resource as This,
+@@ -1663,6 +1698,7 @@ impl State {
+             // A texture that has a staging buffer now is one draws read
+             // through a table: they upload it, and check it at every
+             // submission that samples it.
++            let uploading = std::time::Instant::now();
+             let tabled = crate::texture::is_staged(resource);
+             if tabled {
+                 crate::texture::upload_again(resource);
+@@ -1670,6 +1706,7 @@ impl State {
+             if let Some(view) = &view {
+                 readable(list, sampled.kind, view);
+             }
++            uploaded += uploading.elapsed();
+             // A texture view the host refuses removes the device: name it.
+             static GONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+             if !GONE.load(Ordering::Relaxed)
+@@ -1722,7 +1759,20 @@ impl State {
+                 host.texture_slot_recheck(index, frame, (at, len), crate::texture::fingerprint(at, len));
+             }
+         }
+-        catching_up(began.elapsed().saturating_sub(SPAN));
++        let walk = began.elapsed();
++        SPENT_MS.fetch_add(walk.as_millis() as u64, Ordering::Relaxed);
++        let split = [
++            swept.duration_since(whole).as_micros() as u64,
++            looked.duration_since(swept).as_micros() as u64,
++            scanned.duration_since(looked).as_micros() as u64,
++            created.as_micros() as u64,
++            uploaded.as_micros() as u64,
++            whole.elapsed().as_micros() as u64,
++        ];
++        for (count, now) in HEAP_TEXTURE_SPLIT.iter().zip(split) {
++            count.fetch_add(now, Ordering::Relaxed);
++        }
++        catching_up(walk.saturating_sub(SPAN));
+     }
+ 
+     /// For the frame listing, after a dropped dispatch's line: its group
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index 6ad59ed..d0fb0fe 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -5743,6 +5743,12 @@ impl Meter {
+         let [slots_ms, spans_ms, heap_texture_ms] = crate::draw::HEAP_BUFFER_SPLIT
+             .each_ref()
+             .map(|c| c.swap(0, Ordering::Relaxed) as f64 / 1e3 / frames);
++        // Of the textures part: the queue's upkeep, the looks again, the
++        // scan, the host textures made, and their uploads.
++        let [tex_upkeep, tex_looks, tex_scan, tex_made, tex_uploads, _] =
++            crate::draw::HEAP_TEXTURE_SPLIT
++                .each_ref()
++                .map(|c| c.swap(0, Ordering::Relaxed) as f64 / 1e3 / frames);
+         // Copies between depth textures and their colour twins, each way.
+         let [twin_to_depth, twin_to_colour] =
+             [2, 3].map(|i| crate::resource::TWINS[i].swap(0, Ordering::Relaxed) as f64 / frames);
+@@ -5849,7 +5855,9 @@ impl Meter {
+                  {copy_mb:.1} MB, textures {texture_ms:.1} ms {texture_mb:.1} MB; {gpu:.1} on the \
+                  GPU; {back_ms:.1} copying back {back_mb:.1} MB), {draws:.0} draws/frame, \
+                  dropped {dropped:.0} without a host pipeline ({making} being made) and \
+-                 {indirect:.0} indirect; heap buffers {picked:.1} passes {picked_ms:.1} ms (                  {slots_ms:.1} over the slots, {spans_ms:.1} refreshing them, {heap_texture_ms:.1} making textures);                  texture slots written so far: {placed} placed, {objects} of objects; \
++                 {indirect:.0} indirect; heap buffers {picked:.1} passes {picked_ms:.1} ms (                  {slots_ms:.1} over the slots, {spans_ms:.1} refreshing them, {heap_texture_ms:.1} making textures: \
++                 {tex_upkeep:.1} the queue's upkeep, {tex_looks:.1} looks again, {tex_scan:.1} the scan, {tex_made:.1} host textures, \
++                 {tex_uploads:.1} their uploads);                  texture slots written so far: {placed} placed, {objects} of objects; \
+                  textures picked by index: {picked_textures} uploaded so far ({picked_mb} MB), \
+                  {picked_waiting} waiting, {picked_away} passed over unmapped; depth textures with                  unordered access: {du0} made, bound as depth {du1}x, cleared as depth {du2}x,                  unordered views refused {du3}x; buffer views left null as the host would refuse them: {refused}; {card_memory}",
+                 picked_textures = crate::draw::HEAP_TEXTURES.load(Ordering::Relaxed),
+@@ -5863,6 +5871,11 @@ impl Meter {
+                 slots_ms = slots_ms,
+                 spans_ms = spans_ms,
+                 heap_texture_ms = heap_texture_ms,
++                tex_upkeep = tex_upkeep,
++                tex_looks = tex_looks,
++                tex_scan = tex_scan,
++                tex_made = tex_made,
++                tex_uploads = tex_uploads,
+                 refused = format!(
+                     "{}; depth twins: {} alive, {} depth textures left without one; twin copies per frame: {twin_to_depth:.1} into depth textures, {twin_to_colour:.1} into twins; depth planes: {planes:.1} drawn from their twins per frame, {} times not given back to a twin, {} times used before the pass",
+                     crate::descriptor::host::REFUSED_VIEWS.load(Ordering::Relaxed),
+diff --git a/crates/victory-gpu/src/pipeline/make.rs b/crates/victory-gpu/src/pipeline/make.rs
+index 5f0484c..5054c1a 100644
+--- a/crates/victory-gpu/src/pipeline/make.rs
++++ b/crates/victory-gpu/src/pipeline/make.rs
+@@ -187,6 +187,28 @@ const LOADING_FRAME: Duration = Duration::from_secs(4);
+ /// floor, ceiling and faces (they never came back).
+ const LOADING_FRAME_COMPUTE: Duration = Duration::from_secs(12);
+ 
++/// [`LOADING_FRAME`] and [`LOADING_FRAME_COMPUTE`], as the run sets them:
++/// `VICTORY_PIPELINE_FRAME_S` and `VICTORY_PIPELINE_FRAME_COMPUTE_S`. On a
++/// card whose driver compiles slowly, 2 s a frame turns one long hitch into
++/// a few shorter ones (the draws of a pipeline not made in time are
++/// dropped, as they are past the default).
++fn loading_frame(compute: bool) -> Duration {
++    static GIVEN: OnceLock<(Duration, Duration)> = OnceLock::new();
++    let (graphics, computes) = *GIVEN.get_or_init(|| {
++        let read = |name: &str, default: Duration| {
++            std::env::var(name)
++                .ok()
++                .and_then(|value| value.trim().parse::<u64>().ok())
++                .map_or(default, Duration::from_secs)
++        };
++        (
++            read("VICTORY_PIPELINE_FRAME_S", LOADING_FRAME),
++            read("VICTORY_PIPELINE_FRAME_COMPUTE_S", LOADING_FRAME_COMPUTE),
++        )
++    });
++    if compute { computes } else { graphics }
++}
++
+ /// `VICTORY_PIPELINE_GATE_S`: the bound on all of them (0: none of them).
+ fn loading_left(spent: Duration) -> Duration {
+     static TOTAL: OnceLock<Duration> = OnceLock::new();
+@@ -280,7 +302,7 @@ fn wait(p: &Pending, frame: u64) {
+     let compute = p.computes();
+     let past_total = &LOADINGS[usize::from(compute)];
+     let loading = loading_left(Duration::from_millis(past_total.load(Ordering::Relaxed)));
+-    let budget = budget.max((if compute { LOADING_FRAME_COMPUTE } else { LOADING_FRAME }).min(loading));
++    let budget = budget.max(loading_frame(compute).min(loading));
+     // The frame the budget belongs to, and what was waited of it (or is
+     // taken by a thread waiting now).
+     static SPENTS: [Mutex<(u64, Duration)>; 2] = [const { Mutex::new((u64::MAX, Duration::ZERO)) }; 2];
+diff --git a/crates/victory-gpu/src/resource.rs b/crates/victory-gpu/src/resource.rs
+index 496632e..981998f 100644
+--- a/crates/victory-gpu/src/resource.rs
++++ b/crates/victory-gpu/src/resource.rs
+@@ -1366,11 +1366,7 @@ pub(crate) fn room() -> bool {
+     use std::sync::atomic::Ordering::Relaxed;
+     const FLOOR: u64 = 2 << 30;
+     const WITHOUT_BUDGET: u64 = 4 << 30;
+-    static LIMIT: std::sync::OnceLock<Option<u64>> = std::sync::OnceLock::new();
+-    let limit = *LIMIT.get_or_init(|| {
+-        let mb = std::env::var("VICTORY_TEXTURE_BUDGET_MB").ok()?;
+-        mb.trim().parse::<u64>().ok().map(|mb| mb << 20)
+-    });
++    let limit = texture_budget();
+     let filled = KINDS[1].load(Relaxed);
+     if let Some(limit) = limit {
+         return filled < limit;
+@@ -1384,6 +1380,39 @@ pub(crate) fn room() -> bool {
+     }
+ }
+ 
++/// `VICTORY_TEXTURE_BUDGET_MB`: the bytes of host copies of textures the
++/// title fills that [`room`] allows, if set.
++#[cfg(windows)]
++fn texture_budget() -> Option<u64> {
++    static LIMIT: std::sync::OnceLock<Option<u64>> = std::sync::OnceLock::new();
++    *LIMIT.get_or_init(|| {
++        let mb = std::env::var("VICTORY_TEXTURE_BUDGET_MB").ok()?;
++        mb.trim().parse::<u64>().ok().map(|mb| mb << 20)
++    })
++}
++
++/// Whether the memory [`room`] measures is nearly all used: within an
++/// eighth of its budget. The pass over textures picked by index brings in
++/// no more than the usual amount while this holds (`draw.rs`
++/// `heap_textures`): an 8 GB card's budget is full by the time a world
++/// loads, and a catch-up burst there evicts what it just uploaded.
++#[cfg(windows)]
++pub(crate) fn tight() -> bool {
++    use std::sync::atomic::Ordering::Relaxed;
++    const FLOOR: u64 = 2 << 30;
++    let filled = KINDS[1].load(Relaxed);
++    if let Some(limit) = texture_budget() {
++        return filled.saturating_add(limit / 8) >= limit;
++    }
++    if filled < FLOOR {
++        return false;
++    }
++    match crate::host::host().and_then(|h| h.video_memory()) {
++        Some([budget, used, ..]) => used.saturating_add(budget / 8) >= budget / 10 * 9,
++        None => false,
++    }
++}
++
+ /// Lets go of the host copies of textures the title fills that nothing
+ /// names any more: placed textures were never released (one host texture
+ /// per address and description ever viewed: 18,639 of them, 2.5 GB, after

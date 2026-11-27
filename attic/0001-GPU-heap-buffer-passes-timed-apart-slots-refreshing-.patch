@@ -1,0 +1,106 @@
+From 7120a0cec0dfd8817d3c2d65100333d8a24a5f47 Mon Sep 17 00:00:00 2001
+From: feinjaneq <niesam928@gmail.com>
+Date: Wed, 25 Nov 2026 15:52:31 +0100
+Subject: [PATCH 1/3] GPU: heap buffer passes timed apart (slots, refreshing,
+ textures)
+
+The frame log attributed the whole heap sweep to one number, so a run could
+not say which of its three parts took the time. Run 12 spent 1,550 ms a frame
+there and no line named the cost.
+---
+ crates/victory-gpu/src/draw.rs | 21 +++++++++++++++++++++
+ crates/victory-gpu/src/host.rs | 10 +++++++++-
+ 2 files changed, 30 insertions(+), 1 deletion(-)
+
+diff --git a/crates/victory-gpu/src/draw.rs b/crates/victory-gpu/src/draw.rs
+index ced5296..966488f 100644
+--- a/crates/victory-gpu/src/draw.rs
++++ b/crates/victory-gpu/src/draw.rs
+@@ -343,6 +343,13 @@ pub(crate) static HEAP_VIEWS_ELSEWHERE: AtomicU64 = AtomicU64::new(0);
+ /// index ([`State::heap_buffers`]), and the microseconds they took.
+ pub(crate) static HEAP_BUFFER_PASSES: AtomicU64 = AtomicU64::new(0);
+ pub(crate) static HEAP_BUFFER_MICROS: AtomicU64 = AtomicU64::new(0);
++/// Of those microseconds: the slot walk and the spans built from it, the
++/// refresh of those spans, and the textures picked by index
++/// ([`State::heap_textures`]), in that order. Split because one pass of
++/// 3,533 changed slots over 3,950 copies covering 2,130 MB took 1,540 ms
++/// (2026-11-25, run 1) and which of the three parts that is decides what
++/// to make faster.
++pub(crate) static HEAP_BUFFER_SPLIT: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+ /// Textures brought up to date for shaders that pick them by index
+ /// ([`State::heap_textures`]), the bytes of their memory, and the slots
+ /// still waiting.
+@@ -1412,6 +1419,7 @@ impl State {
+         }
+         drop(kept);
+         let bytes: u64 = spans.values().map(|s| s.2 - s.1).sum();
++        let walked = std::time::Instant::now();
+         // Memory that is not write-watched is copied whole by every refresh.
+         // It was once refreshed only every 120 frames (unmapped pages read
+         // one by one cost 14 GB a frame in run 11, before they were
+@@ -1444,7 +1452,17 @@ impl State {
+             }
+             shadow.refresh(list, *from, to - from);
+         }
++        let refreshed = std::time::Instant::now();
+         self.heap_textures(list, heap, host);
++        let textured = std::time::Instant::now();
++        let split = [
++            walked.duration_since(started).as_micros() as u64,
++            refreshed.duration_since(walked).as_micros() as u64,
++            textured.duration_since(refreshed).as_micros() as u64,
++        ];
++        for (count, now) in HEAP_BUFFER_SPLIT.iter().zip(split) {
++            count.fetch_add(now, Ordering::Relaxed);
++        }
+         HEAP_BUFFER_PASSES.fetch_add(1, Ordering::Relaxed);
+         HEAP_BUFFER_MICROS.fetch_add(started.elapsed().as_micros() as u64, Ordering::Relaxed);
+         static LOGGED: AtomicU64 = AtomicU64::new(0);
+@@ -1458,6 +1476,9 @@ impl State {
+                 copies = spans.len(),
+                 mb = bytes >> 20,
+                 ms = started.elapsed().as_millis(),
++                slots_ms = split[0] / 1000,
++                spans_ms = split[1] / 1000,
++                textures_ms = split[2] / 1000,
+                 "buffer views of the heap made ready for shaders that pick them by index"
+             );
+         }
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index e31ce06..df15242 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -5723,6 +5723,11 @@ impl Meter {
+         let picked = crate::draw::HEAP_BUFFER_PASSES.swap(0, Ordering::Relaxed) as f64 / frames;
+         let picked_ms =
+             crate::draw::HEAP_BUFFER_MICROS.swap(0, Ordering::Relaxed) as f64 / 1e3 / frames;
++        // Of that, in the same order: the slot walk and its spans, the refresh
++        // of those spans, the textures picked by index.
++        let [slots_ms, spans_ms, heap_texture_ms] = crate::draw::HEAP_BUFFER_SPLIT
++            .each_ref()
++            .map(|c| c.swap(0, Ordering::Relaxed) as f64 / 1e3 / frames);
+         // Copies between depth textures and their colour twins, each way.
+         let [twin_to_depth, twin_to_colour] =
+             [2, 3].map(|i| crate::resource::TWINS[i].swap(0, Ordering::Relaxed) as f64 / frames);
+@@ -5809,7 +5814,7 @@ impl Meter {
+                  {copy_mb:.1} MB, textures {texture_ms:.1} ms {texture_mb:.1} MB; {gpu:.1} on the \
+                  GPU; {back_ms:.1} copying back {back_mb:.1} MB), {draws:.0} draws/frame, \
+                  dropped {dropped:.0} without a host pipeline ({making} being made) and \
+-                 {indirect:.0} indirect; heap buffers {picked:.1} passes {picked_ms:.1} ms;                  texture slots written so far: {placed} placed, {objects} of objects; \
++                 {indirect:.0} indirect; heap buffers {picked:.1} passes {picked_ms:.1} ms (                  {slots_ms:.1} over the slots, {spans_ms:.1} refreshing them, {heap_texture_ms:.1} making textures);                  texture slots written so far: {placed} placed, {objects} of objects; \
+                  textures picked by index: {picked_textures} uploaded so far ({picked_mb} MB), \
+                  {picked_waiting} waiting, {picked_away} passed over unmapped; depth textures with                  unordered access: {du0} made, bound as depth {du1}x, cleared as depth {du2}x,                  unordered views refused {du3}x; buffer views left null as the host would refuse them: {refused}",
+                 picked_textures = crate::draw::HEAP_TEXTURES.load(Ordering::Relaxed),
+@@ -5820,6 +5825,9 @@ impl Meter {
+                 du1 = crate::resource::DEPTH_UNORDERED[1].load(Ordering::Relaxed),
+                 du2 = crate::resource::DEPTH_UNORDERED[2].load(Ordering::Relaxed),
+                 du3 = crate::resource::DEPTH_UNORDERED[3].load(Ordering::Relaxed),
++                slots_ms = slots_ms,
++                spans_ms = spans_ms,
++                heap_texture_ms = heap_texture_ms,
+                 refused = format!(
+                     "{}; depth twins: {} alive, {} depth textures left without one; twin copies per frame: {twin_to_depth:.1} into depth textures, {twin_to_colour:.1} into twins; depth planes: {planes:.1} drawn from their twins per frame, {} times not given back to a twin, {} times used before the pass",
+                     crate::descriptor::host::REFUSED_VIEWS.load(Ordering::Relaxed),
+-- 
+2.56.0.windows.2
+

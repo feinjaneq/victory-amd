@@ -1,0 +1,23 @@
+diff --git a/launcher/Program.cs b/launcher/Program.cs
+index 0e5670d..95b2224 100644
+--- a/launcher/Program.cs
++++ b/launcher/Program.cs
+@@ -406,12 +406,12 @@ namespace VictoryLauncher
+ 
+     sealed class LauncherForm : Form
+     {
+-        private const string GameDir = @"C:\Users\gabri\Downloads\GTA6.Xbox.v1.0.2.1-CYBERLEEK";
+-        private const string RepoDir = @"C:\Users\gabri\Downloads\victory-klbf-lab39";
+-        private const string DataDir = @"C:\Users\gabri\Downloads\victory-data";
+-        private const string ConfigPath = @"C:\Users\gabri\Downloads\victory-data\launcher-config.ini";
+-        private const string Ps1Path = @"C:\Users\gabri\Downloads\victory-klbf-lab39\run-klbf-lab39.ps1";
+-        private const string PrecompileBat = @"C:\Users\gabri\Downloads\GTA6.Xbox.v1.0.2.1-CYBERLEEK\PreCompilar-Shaders-KLBF-Lab39-AMD.bat";
++        private const string GameDir = @"C:\Users\Janeq\Downloads\GTA6.Xbox.v1.0.2.1-CYBERLEEK";
++        private const string RepoDir = @"C:\Users\Janeq\.config\freebuff-desktop\local-projects\f5d5af6a-46c0-4a93-9559-a06120a29c94\_rodrion";
++        private const string DataDir = @"C:\Users\Janeq\.config\freebuff-desktop\local-projects\f5d5af6a-46c0-4a93-9559-a06120a29c94\rodrion-data";
++        private const string ConfigPath = @"C:\Users\Janeq\.config\freebuff-desktop\local-projects\f5d5af6a-46c0-4a93-9559-a06120a29c94\rodrion-data\launcher-config.ini";
++        private const string Ps1Path = @"C:\Users\Janeq\.config\freebuff-desktop\local-projects\f5d5af6a-46c0-4a93-9559-a06120a29c94\run-rodrion-launcher.ps1";
++        private const string PrecompileBat = @"C:\Users\Janeq\.config\freebuff-desktop\local-projects\f5d5af6a-46c0-4a93-9559-a06120a29c94\prebuild-rodrion.bat";
+ 
+         private static readonly Color BgWindow = Color.FromArgb(14, 16, 22);
+         private static readonly Color BgCard = Color.FromArgb(22, 26, 36);

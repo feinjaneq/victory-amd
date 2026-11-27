@@ -1,0 +1,124 @@
+From b45f7c24323d01972df47141bd85ee4641ddef9f Mon Sep 17 00:00:00 2001
+From: feinjaneq <niesam928@gmail.com>
+Date: Wed, 25 Nov 2026 15:58:53 +0100
+Subject: [PATCH 3/3] GPU: the frame line carries the card's memory, and slow
+ submissions keep quiet
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A world run's frames ran over the card's budget (7,130 MB of 6,957) and the
+line that says so came every six seconds, too seldom to line up with a frame;
+it is on the frame line now with the texture copies refused for lack of room.
+A slow submission printed a hundred pipeline names inside the path it timed,
+164 times in one run: VICTORY_LOG_SLOW_PIPELINES=1 asks for them.
+
+🤖 Generated with Codebuff
+Co-Authored-By: Codebuff <noreply@codebuff.com>
+---
+ README.md                      |  1 +
+ crates/victory-gpu/src/host.rs | 48 +++++++++++++++++++++++++++++-----
+ 2 files changed, 43 insertions(+), 6 deletions(-)
+
+diff --git a/README.md b/README.md
+index d32c259..77b17af 100644
+--- a/README.md
++++ b/README.md
+@@ -347,6 +347,7 @@ cargo build --profile diag -p victory --features diagnostics   # target\diag\vic
+ | `VICTORY_PIPELINE_WAIT_MS=24` | reduce the per-frame wait for background pipeline creation from the default of 500 ms. A draw can be omitted until its pipeline is ready |
+ | `VICTORY_SKIP_PIPELINES=<hash>,...` | omit draws and dispatches, including indirect ones, whose pipeline contains a listed 16-digit shader hash |
+ | `VICTORY_GPU_TIMING=1` | with the above, each list of a submission run and timed on its own; slow lists logged with their slowest commands |
++| `VICTORY_LOG_SLOW_PIPELINES=1` | a slow submission's warning names the pipelines it ran (a hundred names each, and a world run makes one a frame) |
+ | `VICTORY_D3D12_WARP=1` | host device on the software adapter (slow; cannot reset the driver) |
+ | `VICTORY_SHADER_LOOP_LIMIT=<n>` | translated shader loops stop after `n` iterations per lane instead of 2^20 (own shader cache entries); if a lower `n` makes world frames much faster, loops hitting the limit are what makes them slow |
+ | `VICTORY_AUDIO_CAPTURE=<file.wav>` | records what the title plays (our process only) |
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index df15242..6ad59ed 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -1216,6 +1216,13 @@ pub(crate) fn dred_on() -> bool {
+ /// budget buffers, a run late).
+ static MESH_GROUPS: [std::sync::atomic::AtomicU64; 2] = [const { std::sync::atomic::AtomicU64::new(0) }; 2];
+ 
++/// Whether a slow submission logs the pipelines it ran (`VICTORY_LOG_SLOW_PIPELINES=1`):
++/// a hundred names a warning, and a run of the world makes one a frame.
++fn slow_pipelines() -> bool {
++    static ON: OnceLock<bool> = OnceLock::new();
++    *ON.get_or_init(|| std::env::var_os("VICTORY_LOG_SLOW_PIPELINES").is_some())
++}
++
+ /// Whether each list of a submission runs and is timed on its own, slow
+ /// ones logged with their commands (`VICTORY_GPU_TIMING`, diagnostics
+ /// builds; the commands are noted with `VICTORY_D3D12_DRED` on).
+@@ -4083,11 +4090,19 @@ impl Host {
+         });
+         // The host resets a device whose submission runs for about 2 s.
+         if gpu > std::time::Duration::from_millis(250) {
+-            let pipelines: std::collections::BTreeSet<String> = runs
+-                .iter()
+-                .flat_map(|l| l.pipelines.lock().unwrap_or_else(|e| e.into_inner()).clone())
+-                .collect();
+-            tracing::warn!(ms = gpu.as_millis(), lists = runs.len(), ?pipelines, "slow host submission");
++            // The names are a hundred lines of the log for each warning, and
++            // run 13 wrote 164 of them (over a megabyte) while the submitting
++            // thread was the one being timed: `VICTORY_LOG_SLOW_PIPELINES=1`
++            // asks for them.
++            if slow_pipelines() {
++                let pipelines: std::collections::BTreeSet<String> = runs
++                    .iter()
++                    .flat_map(|l| l.pipelines.lock().unwrap_or_else(|e| e.into_inner()).clone())
++                    .collect();
++                tracing::warn!(ms = gpu.as_millis(), lists = runs.len(), ?pipelines, "slow host submission");
++            } else {
++                tracing::warn!(ms = gpu.as_millis(), lists = runs.len(), "slow host submission");
++            }
+         }
+         // SAFETY: a plain query.
+         if unsafe { self.device.GetDeviceRemovedReason() }.is_err() {
+@@ -5809,6 +5824,26 @@ impl Meter {
+                     per_frame(6) / 1e3
+                 );
+             }
++            // The card's memory as the system accounts it to this process,
++            // and how many texture copies it would not let us make: on the
++            // frame line so that a slow frame can be read against the memory
++            // it ran in. Run 13 spent its frames over the budget (7,130 MB of
++            // 6,957) and the six-second line below was too rare to line up
++            // with any of them.
++            let card_memory = match host().and_then(|h| h.video_memory()) {
++                Some([budget, used, _, shared]) => format!(
++                    "the card {:.0} MB in use of {:.0} MB ({:.0} MB of the PC's memory shared with it), \
++                     {} texture passes made none for lack of room",
++                    used as f64 / 1e6,
++                    budget as f64 / 1e6,
++                    shared as f64 / 1e6,
++                    crate::draw::HEAP_TEXTURES_FULL.load(Ordering::Relaxed)
++                ),
++                None => format!(
++                    "the card's memory unreadable, {} texture passes made none for lack of room",
++                    crate::draw::HEAP_TEXTURES_FULL.load(Ordering::Relaxed)
++                ),
++            };
+             tracing::info!(
+                 "{fps:.1} fps, {ms:.1} ms/frame ({cpu:.1} preparing: copies {copy_ms:.1} ms \
+                  {copy_mb:.1} MB, textures {texture_ms:.1} ms {texture_mb:.1} MB; {gpu:.1} on the \
+@@ -5816,7 +5851,7 @@ impl Meter {
+                  dropped {dropped:.0} without a host pipeline ({making} being made) and \
+                  {indirect:.0} indirect; heap buffers {picked:.1} passes {picked_ms:.1} ms (                  {slots_ms:.1} over the slots, {spans_ms:.1} refreshing them, {heap_texture_ms:.1} making textures);                  texture slots written so far: {placed} placed, {objects} of objects; \
+                  textures picked by index: {picked_textures} uploaded so far ({picked_mb} MB), \
+-                 {picked_waiting} waiting, {picked_away} passed over unmapped; depth textures with                  unordered access: {du0} made, bound as depth {du1}x, cleared as depth {du2}x,                  unordered views refused {du3}x; buffer views left null as the host would refuse them: {refused}",
++                 {picked_waiting} waiting, {picked_away} passed over unmapped; depth textures with                  unordered access: {du0} made, bound as depth {du1}x, cleared as depth {du2}x,                  unordered views refused {du3}x; buffer views left null as the host would refuse them: {refused}; {card_memory}",
+                 picked_textures = crate::draw::HEAP_TEXTURES.load(Ordering::Relaxed),
+                 picked_mb = crate::draw::HEAP_TEXTURE_BYTES.load(Ordering::Relaxed) >> 20,
+                 picked_waiting = crate::draw::HEAP_TEXTURES_WAITING.load(Ordering::Relaxed),
+@@ -5836,6 +5871,7 @@ impl Meter {
+                     crate::resource::PLANES[1].load(Ordering::Relaxed),
+                     crate::resource::PLANES[2].load(Ordering::Relaxed)
+                 ),
++                card_memory = card_memory,
+                 making = crate::pipeline::making(),
+                 placed = crate::descriptor::host::PLACED_TEXTURE_SLOTS.load(Ordering::Relaxed),
+                 objects = crate::descriptor::host::OBJECT_TEXTURE_SLOTS.load(Ordering::Relaxed)
+-- 
+2.56.0.windows.2
+

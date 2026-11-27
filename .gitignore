@@ -1,32 +1,21 @@
-# Fork clones: each is its own git checkout with its own remote, so they are
-# not nested here (git would store a bare pointer and their history would be lost).
+# The fork checkout is its own repository with its own remote, so it is not
+# nested here (git would store a bare pointer and its history would be lost).
 _gl79/
-_coolfox/
-_rodrion/
-_victory_amd/
-_audit_victory/
 
-# Build output, caches and run data (several GB, and rebuildable).
-target/
-*/target/
-amd-cache/
-amd-data/
-coolfox-data/
-rodrion-data/
-gl79-data/cache-gl79/
+# Large and rebuildable.
 ffx/
-
-# Archives and SDK drops
 *.zip
+
+# Run data and saved profile stay local; the launcher's run logs are kept.
+gl79-data/*
+!gl79-data/launcher/
 
 # Launcher runtime
 launcher/.window/
 launcher/server.log
 launcher/window.jpg
 launcher/window-menu.jpg
-launcher/*.ps1
 
 # Machine-local
 .freebuff/
-.cloud-attachments/
 node_modules/
