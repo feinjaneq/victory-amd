@@ -18,7 +18,7 @@ the internet. Close the window and the local server exits on its own.
 ## 1. What you need
 
 - Windows 10 or 11, 64-bit.
-- A Radeon RX 6600 8 GB, a Ryzen 5 5600 and 32 GB of RAM (the profile this
+- A Radeon RX 6600 8 GB (you dont have to but its tuned for it), a good cpu (like a Ryzen 5 5600) and atleast 16GB of RAM (the profile this
   launcher is tuned for; other hardware will run, just not as documented here).
 - [Bun](https://bun.sh) on `PATH`. If you do not have it, `start-launcher.cmd`
   looks for the copy bundled with Freebuff Desktop and shows a message box if it
