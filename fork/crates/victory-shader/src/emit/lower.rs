@@ -1116,6 +1116,27 @@ thread_local! {
 
 /// `VICTORY_WAVE_OWN_BITS=0`: a wave OR where not every lane runs is refused as before
 /// ([`super::own_bits`]).
+/// The floats of colour exports and of typed stores go through
+/// [`Lower::nan_guard`] (from willy's build, after Neptune-VE), unless
+/// `VICTORY_NAN_GUARD=0`; the shader cache keys on the switch, as on every
+/// `VICTORY_*` switch the translator reads ([`super::switch_values`]). With
+/// it, blotched, painted-looking walls and skin came out smooth there at the
+/// same frame rate.
+fn nan_guard_on() -> bool {
+    #[cfg(test)]
+    if let Some(on) = TEST_NAN_GUARD.get() {
+        return on;
+    }
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("VICTORY_NAN_GUARD").is_none_or(|v| v != "0"))
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A test's choice for [`nan_guard_on`], for its thread only.
+    pub(super) static TEST_NAN_GUARD: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
 fn own_bits_on() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| std::env::var_os("VICTORY_WAVE_OWN_BITS").is_none_or(|v| v != "0"))
@@ -3957,6 +3978,39 @@ impl<'a> Lower<'a> {
     }
 
     /// `0 × anything = 0`, as in D3D9.
+    /// A float a pixel program exports to a colour target, or a store writes
+    /// to a typed image or buffer, with NaN made 0 and an infinity ±65504, so
+    /// one bad pixel does not stay in a history the title blends into each
+    /// frame ([`nan_guard_on`]). `strict` (float targets): every NaN.
+    /// Otherwise only the default quiet NaN (either sign) and infinities: a
+    /// typed store may carry an integer's bits, and all-ones or other NaN
+    /// patterns are common integers.
+    fn nan_guard(&mut self, f: V, strict: bool) -> V {
+        if !nan_guard_on() {
+            return f;
+        }
+        let c = self.cur;
+        let bits = self.as_int(f);
+        let mag = self.s.m.i32(0x7FFF_FFFF);
+        let abs = self.s.m.bin(c, Bin::And, bits, mag);
+        let inf_bits = self.s.m.i32(0x7F80_0000);
+        let nan = if strict {
+            self.s.m.cmp(c, pred::IUGT, abs, inf_bits)
+        } else {
+            let quiet = self.s.m.i32(0x7FC0_0000);
+            self.s.m.cmp(c, pred::EQ, abs, quiet)
+        };
+        let inf = self.s.m.cmp(c, pred::EQ, abs, inf_bits);
+        let sign_bit = self.s.m.i32(0x8000_0000);
+        let sign = self.s.m.bin(c, Bin::And, bits, sign_bit);
+        let big = self.s.m.i32(65504f32.to_bits());
+        let big = self.s.m.bin(c, Bin::Or, sign, big);
+        let zero = self.s.m.i32(0);
+        let r = self.s.m.select(c, inf, big, bits);
+        let r = self.s.m.select(c, nan, zero, r);
+        self.as_float(r)
+    }
+
     fn legacy_mul(&mut self, a: V, b: V) -> V {
         let c = self.cur;
         if host_rdna() & super::rdna::LEGACY != 0 {
@@ -10970,6 +11024,10 @@ impl<'a> Lower<'a> {
                     self.float_of(v)?
                 });
             }
+            // The NaN guard ([`Self::nan_guard`]): the texture's format is not
+            // known here, so only the default NaN and infinities, which a
+            // texel of an integer format seldom is.
+            let vals: Vec<V> = vals.into_iter().map(|v| self.nan_guard(v, false)).collect();
             let h = self.handle(site, src, false, props)?;
             let at = self.begin_guarded(guard);
             let mut args = vec![h];
@@ -11920,6 +11978,9 @@ impl<'a> Lower<'a> {
                     let f = self
                         .s
                         .op(c, "legacyF16ToF32", Attr::ReadNone, f32t, 131, &[x]);
+                    // The float alone: through a view of an integer format the
+                    // integer below is stored instead.
+                    let f = if nan_guard_on() && integer.is_some() { self.nan_guard(f, false) } else { f };
                     let mut w = self.as_int(f);
                     if let Some((int, signed)) = integer {
                         let (k16, low) = (self.s.m.i32(16), self.s.m.i32(0xFFFF));
@@ -11942,8 +12003,18 @@ impl<'a> Lower<'a> {
                 }
                 args.push(self.handle(site, src, false, (10 | u, 0x409))?);
                 args.extend([index.unwrap_or(self.s.m.i32(0)), iu]);
+                // A view of an integer format keeps its bits; the other views
+                // of 32-bit data are floats and are guarded ([`Self::nan_guard`]).
+                let integer = if nan_guard_on() { self.integer_view(src)? } else { None };
                 for x in vals {
-                    args.push(self.as_float(x));
+                    let f = self.as_float(x);
+                    args.push(match integer {
+                        Some((int, _)) => {
+                            let guarded = self.nan_guard(f, false);
+                            self.s.m.select(c, int, f, guarded)
+                        }
+                        None => f,
+                    });
                 }
                 (69, "bufferStore.f32")
             } else {
@@ -12302,8 +12373,11 @@ impl<'a> Lower<'a> {
                     .op(c, "legacyF16ToF32", Attr::ReadNone, f32t, 131, &[x]);
                 x = self.as_int(f);
             }
+            let pixel = self.s.pixel;
             let el = &mut elements(self, primitive)[id];
             el.usage |= 1 << col;
+            // A float colour target: every NaN is guarded ([`Self::nan_guard`]).
+            let target = !mesh && pixel && el.kind == 16 && el.comp == 9;
             let (suffix, x) = match el.comp {
                 9 if half.is_some() => (".f32", self.as_float(x)),
                 9 => {
@@ -12315,6 +12389,7 @@ impl<'a> Lower<'a> {
                 }
                 _ => (".i32", x),
             };
+            let x = if target { self.nan_guard(x, true) } else { x };
             let mut args = vec![
                 self.s.m.i32(id as u32),
                 self.s.m.i32(0),
