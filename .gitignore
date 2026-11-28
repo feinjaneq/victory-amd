@@ -2,8 +2,10 @@
 # nested here (git would store a bare pointer and its history would be lost).
 _gl79/
 
-# Large and rebuildable.
+# Large and rebuildable: the two SDKs launcher/vendor.ps1 fetches when they are
+# missing (AMD's FSR SDK and Microsoft's DirectX 12 Agility SDK).
 ffx/
+agility/
 *.zip
 
 # Run data and saved profile stay local; build and prebuild logs are kept.

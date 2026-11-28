@@ -44,6 +44,8 @@ const el = {
   recordToggle: $("#record-toggle"),
   prebuildBeforeNote: $("#prebuild-before-note"),
   prebuildToggle: $("#prebuild-toggle"),
+  sdkNote: $("#sdk-note"),
+  sdkDownload: $("#sdk-download"),
 };
 
 let mode = localStorage.getItem("run-mode") === "normal" ? "normal" : "optimized";
@@ -249,6 +251,16 @@ function render() {
   el.memoryNote.textContent = data.memoryStack
     ? "On: Play passes -MemoryStack, and the runtime turns its 15 memory switches on for that run."
     : "Off: Play runs the runtime as it shipped, every memory switch at its default.";
+
+  const missing = data.sdksMissing ?? [];
+  el.sdkNote.textContent =
+    data.busy === "vendor"
+      ? `Downloading ${missing.join(" and ")} from its publisher…`
+      : missing.length
+        ? `Missing: ${missing.join(", ")}. Download takes them from Microsoft's NuGet and AMD's GitHub, with their licenses.`
+        : "In place: DirectX 12 Agility SDK in agility/, FSR SDK in ffx/, each with its license beside it.";
+  el.sdkDownload.hidden = missing.length === 0;
+  el.sdkDownload.disabled = data.busy === "vendor";
 
   el.prebuildToggle.textContent = data.prebuildBeforePlay ? "Turn off" : "Turn on";
   el.prebuildBeforeNote.textContent = data.prebuildBeforePlay
@@ -462,6 +474,13 @@ el.recordToggle.addEventListener("click", async () => {
   const res = await api("/api/record", { on: !data?.record });
   el.recordToggle.disabled = false;
   if (res.error) el.recordNote.textContent = res.error;
+  poll();
+});
+
+el.sdkDownload.addEventListener("click", async () => {
+  el.sdkDownload.disabled = true;
+  const res = await api("/api/vendor", {});
+  if (res.error) el.sdkNote.textContent = res.error;
   poll();
 });
 

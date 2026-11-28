@@ -104,6 +104,8 @@ const P = {
   script: join(ROOT, "_gl79", "scripts", "play-rx6600.ps1"),
   config: join(ROOT, "_gl79", "victory.toml"),
   ffx: join(ROOT, "ffx", "Kits", "FidelityFX", "signedbin"),
+  agility: join(ROOT, "agility"),
+  vendor: join(HERE, "vendor.ps1"),
   data: join(ROOT, "gl79-data"),
   cache: join(ROOT, "gl79-data", "cache-gl79"),
   logs: join(ROOT, "gl79-data", "launcher"),
@@ -158,7 +160,7 @@ const BUILD_ARGV = ["cargo", "build", "--locked", "--profile", "diag", "-p", "vi
 /* ---------- jobs ---------- */
 
 type Job = {
-  kind: "run" | "prebuild" | "build" | "warm";
+  kind: "run" | "prebuild" | "build" | "warm" | "vendor";
   mode?: Mode;
   log: string;
   startedAt: number;
@@ -173,11 +175,18 @@ type Job = {
 };
 
 let active: Job | null = null; // at most one job, ever
-const latest: { run: Job | null; prebuild: Job | null; build: Job | null; warm: Job | null } = {
+const latest: {
+  run: Job | null;
+  prebuild: Job | null;
+  build: Job | null;
+  warm: Job | null;
+  vendor: Job | null;
+} = {
   run: null,
   prebuild: null,
   build: null,
   warm: null,
+  vendor: null,
 };
 let lastSeen = Date.now();
 
@@ -365,6 +374,25 @@ function startRun(modeId: string) {
   return start("run", runArgv(mode, exe), `run-${mode.id}`, mode);
 }
 
+// The two SDKs the fork's script and this project expect from their own
+// publishers: Microsoft's DirectX 12 Agility SDK and AMD's FSR SDK. Each is
+// fetched only when it is not here, with its license beside it.
+const sdksMissing = () => {
+  const missing: string[] = [];
+  if (!existsSync(join(P.agility, "D3D12Core.dll"))) missing.push("DirectX 12 Agility SDK");
+  if (!existsSync(join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll"))) missing.push("AMD FSR SDK");
+  return missing;
+};
+
+function startVendor() {
+  if (!existsSync(P.vendor)) return { error: `missing script: ${P.vendor}` };
+  return start(
+    "vendor",
+    ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", P.vendor],
+    "vendor",
+  );
+}
+
 function startPrebuild() {
   if (!existsSync(buildExeNow())) return { error: `missing build: ${buildExeNow()}${buildHint()}` };
   return start("prebuild", prebuildArgv(), "prebuild");
@@ -503,6 +531,7 @@ async function snapshot() {
     record: settings().record,
     prebuildBeforePlay: settings().prebuild,
     prebuilt: prebuiltNow() === prebuildStamp(),
+    sdksMissing: sdksMissing(),
     paths: {
       game: gameExeNow() ?? join(gameDirNow(), GAME_EXE),
       gameDir: gameDirNow(),
@@ -510,6 +539,7 @@ async function snapshot() {
       profile: profileNow(),
       script: P.script,
       ffx: P.ffx,
+      agility: P.agility,
       config: P.config,
       logs: P.logs,
     },
@@ -518,6 +548,7 @@ async function snapshot() {
       build: existsSync(buildExeNow()),
       script: existsSync(P.script),
       ffx: existsSync(join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")),
+      agility: existsSync(join(P.agility, "D3D12Core.dll")),
       config: existsSync(P.config),
     },
   };
@@ -627,6 +658,7 @@ async function route(req: Request, url: URL) {
   if (url.pathname === "/api/play") return json(startRun(String((await body(req)).mode ?? "")));
   if (url.pathname === "/api/stop") return json(stop());
   if (url.pathname === "/api/prebuild") return json(startPrebuild());
+  if (url.pathname === "/api/vendor") return json(startVendor());
   if (url.pathname === "/api/warm") return json(startWarm());
   if (url.pathname === "/api/build") return json(startBuild());
   if (url.pathname === "/api/open") return json(openFolder(String((await body(req)).target ?? "")));
@@ -706,6 +738,14 @@ async function boot() {
   const url = `http://127.0.0.1:${port}/`;
   console.log(`launcher on ${url}`);
   if (process.env.LAUNCHER_NO_WINDOW !== "1") openWindow(url);
+
+  // The two SDKs from their own publishers, once, when they are not here yet:
+  // a job in the Workshop console like any other, so the log says what it got.
+  const missing = sdksMissing();
+  if (missing.length) {
+    console.log(`fetching ${missing.join(" and ")}`);
+    startVendor();
+  }
 
   // The window polls; when it is gone, nothing keeps this server alive.
   setInterval(() => {

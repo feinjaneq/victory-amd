@@ -16,6 +16,7 @@ diagnose.cmd                one session: frame-time numbers and popwatch picture
 launcher/server.ts          Bun server: state, play, stop, prebuild, warm, build, logs
 launcher/prebuild.ps1       the prebuild-shaders.cmd work
 launcher/diagnose.ps1       the diagnose.cmd work
+launcher/vendor.ps1         fetches the SDKs below when they are missing
 launcher/pick-folder.ps1    the native folder dialog behind Settings
 launcher/public/            the window (HTML/CSS/JS, hero art)
 gl79-data/launcher/         run and prebuild logs, one file per run
@@ -54,9 +55,18 @@ Its switches stay off in the runtime; Settings → Memory stack makes Play pass
 prelude pool and budget pack are ported into `host.rs` — read `PORTED.md` before adding
 another group, and keep every group behind its switch.
 
-Other paths stay outside this repository: `_gl79/target/diag/victory.exe` and
-`ffx/Kits/FidelityFX/signedbin`. The UI calls the title "Retail Game" and never uses
-its real name.
+Other paths stay outside this repository: `_gl79/target/diag/victory.exe`,
+`ffx/Kits/FidelityFX/signedbin` and `agility/`. The UI calls the title "Retail Game"
+and never uses its real name.
+
+Two SDKs come from their own publishers and are fetched only when missing, by
+`launcher/vendor.ps1` (at startup, Settings → **Download**, and `POST /api/vendor`):
+AMD's FSR SDK, tag `v2.4.0` of `GPUOpen-LibrariesAndSDKs/FidelityFX-SDK`, whose
+`Kits/FidelityFX/signedbin` files land in `ffx/Kits/FidelityFX/signedbin` with
+`license.md` and `3rdpartynotice.md` beside them; and Microsoft's DirectX 12
+Agility SDK, the `Microsoft.Direct3D.D3D12` NuGet package (1.620.2), whose
+`D3D12Core.dll`, `d3d12SDKLayers.dll` and `LICENSE.txt` land in `agility/` — a
+`D3D12SDKPath` folder as it stands. Do not add either by hand or commit them.
 
 ## After every build
 
