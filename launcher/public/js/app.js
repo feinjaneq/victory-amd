@@ -42,6 +42,8 @@ const el = {
   memoryToggle: $("#memory-toggle"),
   recordNote: $("#record-note"),
   recordToggle: $("#record-toggle"),
+  prebuildBeforeNote: $("#prebuild-before-note"),
+  prebuildToggle: $("#prebuild-toggle"),
 };
 
 let mode = localStorage.getItem("run-mode") === "normal" ? "normal" : "optimized";
@@ -205,6 +207,8 @@ function showRunline() {
   if (!data) return;
   if (data.running) {
     setRunline(`Running · ${mmss(Date.now() - data.startedAt)} · ${data.runningMode}`, "is-running");
+  } else if (data.busy === "prebuild") {
+    setRunline("Preparing shaders and pipelines before the first frame…", "is-running");
   } else if (!data.checks.game) {
     setRunline("Game folder not set — Settings → Choose folder…", "is-error");
   } else if (data.last) {
@@ -245,6 +249,13 @@ function render() {
   el.memoryNote.textContent = data.memoryStack
     ? "On: Play passes -MemoryStack, and the runtime turns its 15 memory switches on for that run."
     : "Off: Play runs the runtime as it shipped, every memory switch at its default.";
+
+  el.prebuildToggle.textContent = data.prebuildBeforePlay ? "Turn off" : "Turn on";
+  el.prebuildBeforeNote.textContent = data.prebuildBeforePlay
+    ? data.prebuilt
+      ? "On: the shaders and the recorded pipelines are current for this build; Play starts at once."
+      : "On: Play first translates the shaders and makes the recorded pipelines, then starts the game."
+    : "Off: Play starts the game at once, and anything not cached is compiled during play.";
 
   el.recordToggle.textContent = data.record ? "Turn off" : "Turn on";
   el.recordNote.textContent = data.record
@@ -451,6 +462,14 @@ el.recordToggle.addEventListener("click", async () => {
   const res = await api("/api/record", { on: !data?.record });
   el.recordToggle.disabled = false;
   if (res.error) el.recordNote.textContent = res.error;
+  poll();
+});
+
+el.prebuildToggle.addEventListener("click", async () => {
+  el.prebuildToggle.disabled = true;
+  const res = await api("/api/prebuild-before-play", { on: !data?.prebuildBeforePlay });
+  el.prebuildToggle.disabled = false;
+  if (res.error) el.prebuildBeforeNote.textContent = res.error;
   poll();
 });
 

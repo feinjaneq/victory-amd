@@ -25,7 +25,7 @@ const GAME_EXE = "game_scarlett_master.exe";
 const SETTINGS_FILE = join(ROOT, "gl79-data", "settings.json");
 const PICKER = join(HERE, "pick-folder.ps1");
 
-type Settings = { gameDir: string | null; memoryStack: boolean; record: boolean };
+type Settings = { gameDir: string | null; memoryStack: boolean; record: boolean; prebuild: boolean };
 
 // Read on every use, so a folder chosen in the window applies without a restart,
 // and a missing or damaged file just means the defaults (it cannot break a setup
@@ -37,9 +37,10 @@ function settings(): Settings {
       gameDir: typeof raw.gameDir === "string" && raw.gameDir.trim() !== "" ? raw.gameDir : null,
       memoryStack: raw.memoryStack === true,
       record: raw.record === true,
+      prebuild: raw.prebuild !== false,
     };
   } catch {
-    return { gameDir: null, memoryStack: false, record: false };
+    return { gameDir: null, memoryStack: false, record: false, prebuild: true };
   }
 }
 
@@ -164,6 +165,11 @@ type Job = {
   endedAt: number | null;
   exit: number | null;
   proc: ReturnType<typeof Bun.spawn>;
+  /// The shaders and pipelines this job made are current for this build and
+  /// set of switches: write the stamp when it ends cleanly.
+  stamp?: boolean;
+  /// What to start once it ended cleanly (Play, after its prebuild).
+  then?: () => void;
 };
 
 let active: Job | null = null; // at most one job, ever
@@ -208,7 +214,62 @@ async function pump(stream: ReadableStream<Uint8Array> | undefined, sink: Return
   }
 }
 
-function start(kind: Job["kind"], argv: string[], logTag: string, mode?: Mode) {
+/* ---------- prebuild stamp ---------- */
+
+// What the shaders and pipelines were made for: this build's victory.exe and
+// the VICTORY_* switches in this window. A run whose stamp differs translates
+// and warms first, so nothing is compiled during play.
+const PREBUILT = join(ROOT, "gl79-data", "prebuilt");
+
+const prebuildStamp = () => {
+  const exe = buildExeNow();
+  let id = exe;
+  try {
+    const s = statSync(exe);
+    id = `${exe}:${s.size}:${s.mtimeMs}`;
+  } catch {
+    /* no build: the stamp cannot match, and Play refuses anyway */
+  }
+  const switches = Object.entries(process.env)
+    .filter(([name]) => name.startsWith("VICTORY_"))
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([name, value]) => `${name}=${value}`)
+    .join(";");
+  return `${Bun.hash(id).toString(16)}-${Bun.hash(switches).toString(16)}`;
+};
+
+function prebuiltNow(): string {
+  try {
+    return readFileSync(PREBUILT, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+const markPrebuilt = () => {
+  try {
+    mkdirSync(join(ROOT, "gl79-data"), { recursive: true });
+    writeFileSync(PREBUILT, `${prebuildStamp()}\n`);
+  } catch {
+    /* a stamp that cannot be written only means the next Play prebuilds again */
+  }
+};
+
+// The shaders, then the pipelines earlier runs drew: one process, one log.
+const prebuildChainArgv = () => {
+  const quote = (path: string) => `'${path.replace(/'/g, "''")}'`;
+  const exe = quote(buildExeNow());
+  return [
+    "powershell",
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    `& ${exe} shaders --jobs 10; if ($LASTEXITCODE -eq 0) { & ${exe} warm --used --jobs 8 }`,
+  ];
+};
+
+function start(kind: Job["kind"], argv: string[], logTag: string, mode?: Mode, then?: () => void, stampAfter = false) {
   if (active) return { error: active.kind === "run" ? "the game is already running" : "a build is already running" };
 
   mkdirSync(P.logs, { recursive: true });
@@ -226,7 +287,7 @@ function start(kind: Job["kind"], argv: string[], logTag: string, mode?: Mode) {
     return { error: `could not start it: ${error}` };
   }
 
-  const job: Job = { kind, mode, log, startedAt: Date.now(), endedAt: null, exit: null, proc };
+  const job: Job = { kind, mode, log, startedAt: Date.now(), endedAt: null, exit: null, proc, stamp: stampAfter, then };
 
   active = job;
   latest[kind] = job;
@@ -243,6 +304,10 @@ function start(kind: Job["kind"], argv: string[], logTag: string, mode?: Mode) {
       job.exit = code;
       job.endedAt = Date.now();
       if (active === job) active = null;
+      if (code === 0) {
+        if (job.stamp) markPrebuilt();
+        job.then?.();
+      }
     });
 
   return { ok: true };
@@ -291,6 +356,12 @@ function startRun(modeId: string) {
   if (!exe) return { error: gameHint() };
   if (mode.args.includes("-FidelityFxDir") && !existsSync(join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")))
     return { error: `missing FidelityFX: ${join(P.ffx, "amd_fidelityfx_upscaler_dx12.dll")}` };
+  // Shaders and pipelines first when this build or these switches have not had
+  // them made yet: the run then never compiles while you look at it.
+  if (settings().prebuild && prebuiltNow() !== prebuildStamp()) {
+    const made = start("prebuild", prebuildChainArgv(), "prebuild", undefined, () => startRun(modeId), true);
+    return "error" in made ? made : { ok: true, preparing: true };
+  }
   return start("run", runArgv(mode, exe), `run-${mode.id}`, mode);
 }
 
@@ -430,6 +501,8 @@ async function snapshot() {
     source: hasSource(),
     memoryStack: settings().memoryStack,
     record: settings().record,
+    prebuildBeforePlay: settings().prebuild,
+    prebuilt: prebuiltNow() === prebuildStamp(),
     paths: {
       game: gameExeNow() ?? join(gameDirNow(), GAME_EXE),
       gameDir: gameDirNow(),
@@ -539,11 +612,18 @@ function setRecord(on: unknown) {
   return { ok: true, record: on };
 }
 
+function setPrebuild(on: unknown) {
+  if (typeof on !== "boolean") return { error: "expected true or false" };
+  saveSettings({ prebuild: on });
+  return { ok: true, prebuild: on };
+}
+
 async function route(req: Request, url: URL) {
   if (url.pathname === "/api/state") return json(await snapshot());
   if (url.pathname === "/api/game-dir") return json(await pickGameDir());
   if (url.pathname === "/api/memory-stack") return json(setMemoryStack((await body(req)).on));
   if (url.pathname === "/api/record") return json(setRecord((await body(req)).on));
+  if (url.pathname === "/api/prebuild-before-play") return json(setPrebuild((await body(req)).on));
   if (url.pathname === "/api/play") return json(startRun(String((await body(req)).mode ?? "")));
   if (url.pathname === "/api/stop") return json(stop());
   if (url.pathname === "/api/prebuild") return json(startPrebuild());
