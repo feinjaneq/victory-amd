@@ -4211,6 +4211,33 @@ fn read_backs(list: &HostList) {
 
 /// After the card ran what declared `back`: what shaders wrote there goes
 /// into title memory, and the ranges are done with.
+/// Which picture-affecting switches a report was made under, said once per
+/// run: the NaN guard of willy's build, the E5 stand-ins, the reflection
+/// clamp. A session's log and its popwatch pictures then say what produced
+/// them, which is what a default flipped on evidence needs.
+fn picture_switches_once() {
+    static ONCE: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    ONCE.get_or_init(|| {
+        let guard = if std::env::var("VICTORY_NAN_GUARD").as_deref() == Ok("0") {
+            "off"
+        } else {
+            "on"
+        };
+        let e5 = if std::env::var("VICTORY_E5_TARGETS").as_deref() == Ok("r11g11b10") {
+            "R11G11B10_FLOAT"
+        } else {
+            "R16G16B16A16_FLOAT"
+        };
+        let set = |name: &str| std::env::var(name).unwrap_or_else(|_| "unset".to_string());
+        tracing::info!(
+            "picture switches: NaN guard {guard}, E5 stand-in {e5}, ambient reflections at {} of the local estimate (turns {}), screen reflections {}",
+            set("VICTORY_AMBIENT_REFLECT"),
+            set("VICTORY_AMBIENT_REFLECT_TURNS"),
+            set("VICTORY_REFLECT_SCREEN")
+        );
+    });
+}
+
 fn hand_back(back: &[Declared]) {
     if crate::shadow::wide_back() {
         // Every range first (the pieces that differ, found on several
@@ -9272,6 +9299,7 @@ impl Meter {
                 placed = crate::descriptor::host::PLACED_TEXTURE_SLOTS.load(Ordering::Relaxed),
                 objects = crate::descriptor::host::OBJECT_TEXTURE_SLOTS.load(Ordering::Relaxed)
             );
+            picture_switches_once();
             #[cfg(feature = "diagnostics")]
             {
                 let put = [0, 1, 2, 3].map(|i| crate::shadow::PUT[i].swap(0, Ordering::Relaxed) as f64 / frames);
